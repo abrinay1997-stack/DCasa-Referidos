@@ -231,7 +231,7 @@ export function fichaCliente({ datos, ir, recargar, admin }) {
         ? el('p', { clase: 'nota', texto: 'Está en el programa: ve sus puntos desde el teléfono.' })
         : el('p', { clase: 'aviso bueno', role: 'status', texto:
             datos.saldo > 0
-              ? `Tiene ${comoPuntos(datos.saldo)} puntos esperando y todavía no lo sabe. Dile que escanee el QR.`
+              ? `Tiene ${comoPuntos(datos.saldo)} puntos esperando y todavía no lo sabe.`
               : 'Todavía no ha entrado al programa.' }),
 
       el('div', { clase: 'datos' }, [
@@ -246,6 +246,8 @@ export function fichaCliente({ datos, ir, recargar, admin }) {
       ]),
       c.notas ? el('p', { clase: 'notas-ficha', texto: c.notas }) : null,
     ]),
+
+    c.reclamada ? null : comoEntra(c, datos.saldo),
 
     el('div', { clase: 'cifras' }, [
       cifra('Ha comprado', comoDolares(datos.compradoCentavos), `en ${datos.cuantasCompras} compra(s)`),
@@ -322,6 +324,111 @@ export function fichaCliente({ datos, ir, recargar, admin }) {
     c.eliminadoEn && admin ? borradoDefinitivo(c, ir) : null,
 
     el('button', { clase: 'boton secundario', type: 'button', texto: 'Volver a clientes', onclick: () => ir('#/clientes') }),
+  ]);
+}
+
+/**
+ * Cómo entra al programa un cliente que todavía no lo ha hecho.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUÉ ESTO TIENE QUE ESTAR AQUÍ Y NO EN UN MANUAL
+ *
+ * El sistema sabía hacerlo desde el primer día y NADIE PODÍA ADIVINARLO. La
+ * pantalla decía «dile que escanee el QR» y ahí se acababa: no decía a qué
+ * dirección, no enseñaba el código que el sistema le va a pedir, y el mensaje
+ * de «reiniciar el PIN» llegaba a decir «el código que le van a pedir es este»
+ * sin enseñar ningún código — el servidor lo mandaba en el detalle y la
+ * pantalla lo tiraba.
+ *
+ * El dueño lo intentó con su propia cuenta, con 36,379 puntos dentro, y no
+ * pudo entrar. Eso no es un fallo del programa: es un fallo de esta pantalla,
+ * y es peor, porque el programa funcionaba.
+ *
+ * Aquí está todo lo que hace falta, en el orden en que se usa: la dirección,
+ * el código, y un botón que se lo manda por WhatsApp — que es por donde de
+ * verdad se comunica una tienda en Panamá.
+ */
+function comoEntra(c, saldo) {
+  const enlace = `${location.origin}/`;
+  const necesitaCodigo = saldo > 0;
+
+  const mensaje =
+    `¡Hola ${c.nombre}! Tienes ${comoPuntos(saldo)} puntos de D'CASA esperándote` +
+    ` — son ${comoDolares(saldo)} en premios.\n\n` +
+    `Entra aquí: ${enlace}\n` +
+    `Toca «Crea tu cuenta», pon tu celular ${c.telefono} e inventa un PIN de 6 números.` +
+    (necesitaCodigo ? `\nTe va a pedir el código de tu comprobante: ${c.codigo}` : '');
+
+  const copiar = el('button', {
+    clase: 'boton secundario chico',
+    type: 'button',
+    texto: 'Copiar el código',
+    onclick: async (evento) => {
+      try {
+        await navigator.clipboard.writeText(c.codigo);
+        evento.target.textContent = 'Copiado';
+        setTimeout(() => { evento.target.textContent = 'Copiar el código'; }, 1600);
+      } catch {
+        // Sin permiso de portapapeles no se rompe nada: el código está escrito
+        // arriba, en grande, para leerlo en voz alta.
+        evento.target.textContent = 'Cópialo de arriba';
+      }
+    },
+  });
+
+  return el('div', { clase: 'tarjeta entra' }, [
+    el('h2', {}, [
+      document.createTextNode('Cómo entra a ver sus puntos'),
+      ayuda(
+        'Sus puntos ya están guardados y le esperan: esto es solo para que pueda verlos ' +
+          'desde su teléfono y canjearlos. Mientras no entre, los puntos siguen ahí y no ' +
+          'se pierden.',
+        { etiqueta: 'Qué pasa si no entra' },
+      ),
+    ]),
+
+    el('ol', { clase: 'pasos' }, [
+      el('li', {}, [
+        document.createTextNode('Entra a '),
+        el('b', { texto: enlace.replace(/^https?:\/\//, '') }),
+        document.createTextNode(' desde su celular.'),
+      ]),
+      el('li', { texto: 'Toca «Crea tu cuenta».' }),
+      el('li', {}, [
+        document.createTextNode('Pone su celular '),
+        el('b', { texto: c.telefono }),
+        document.createTextNode(' e inventa un PIN de 6 números.'),
+      ]),
+      necesitaCodigo
+        ? el('li', {}, [
+            document.createTextNode('Le va a pedir el código de su comprobante. Es este:'),
+            el('span', { clase: 'codigo-grande', texto: c.codigo }),
+          ])
+        : null,
+    ]),
+
+    necesitaCodigo
+      ? el('p', { clase: 'nota' }, [
+          document.createTextNode('Solo se le pide el código porque ya tiene puntos.'),
+          ayuda(
+            'Sin ese segundo dato, cualquiera que supiera su celular podría reclamar la ' +
+              'cuenta y llevarse sus puntos. El código va impreso en cada comprobante, así ' +
+              'que quien de verdad compró lo tiene en la mano — y si lo perdió, aquí está.',
+            { etiqueta: 'Por qué se le pide' },
+          ),
+        ])
+      : null,
+
+    el('div', { clase: 'rejilla chica' }, [
+      el('a', {
+        clase: 'boton',
+        href: `https://wa.me/507${c.telefono.replace(/\D/g, '').slice(-8)}?text=${encodeURIComponent(mensaje)}`,
+        target: '_blank',
+        rel: 'noopener',
+        texto: 'Mandárselo por WhatsApp',
+      }),
+      copiar,
+    ]),
   ]);
 }
 

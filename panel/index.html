@@ -604,6 +604,28 @@
   .paginas { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
   .paginas .nota { text-align: center; font-variant-numeric: tabular-nums; }
 
+  /* Un código para leer en voz alta o copiar de un vistazo. Con espacio entre
+     letras: se dicta por teléfono y se teclea desde otro móvil. */
+  .codigo-grande {
+    display: inline-block;
+    margin: 8px 0 0;
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: var(--amarillo);
+    color: var(--azul);
+    font-family: Anton, Inter, sans-serif;
+    font-size: 24px;
+    letter-spacing: 0.12em;
+  }
+
+  .tarjeta.entra { border: 2px solid var(--azul); }
+  .pasos { margin: 12px 0 0; padding-left: 22px; }
+  .pasos li { margin-bottom: 9px; line-height: 1.5; }
+  .pasos li:last-child { margin-bottom: 0; }
+  /* El enlace de WhatsApp es un <a>, no un <button>: tiene que poder abrirse
+     en otra pestaña y copiarse. Se le da la misma caja que a un botón. */
+  a.boton { display: block; text-align: center; text-decoration: none; }
+
   .datos { margin: 14px 0 0; }
   .dato { display: flex; justify-content: space-between; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--borde); }
   .dato:last-child { border-bottom: 0; }

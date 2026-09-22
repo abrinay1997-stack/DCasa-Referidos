@@ -404,7 +404,16 @@ function acciones({ socio, recargar }) {
     try {
       ({ pin } = await api.reiniciarPin(socio.codigo));
     } catch (fallo) {
-      return donde.prepend(aviso(fallo.message));
+      // EL DETALLE SE ENSEÑA. Cuando este cliente todavía no está en el
+      // programa, el servidor manda en `detalle` el código que le van a pedir
+      // para entrar — y el mensaje dice «el código que le van a pedir es
+      // este». La pantalla tiraba el detalle, así que decía «este» y no
+      // enseñaba nada. El dueño se quedó mirando esa frase sin poder entrar.
+      const caja = el('div', {}, [
+        aviso(fallo.message),
+        fallo.detalle ? el('span', { clase: 'codigo-grande', texto: fallo.detalle }) : null,
+      ]);
+      return donde.prepend(caja);
     }
 
     // ---------------------------------------------------------------------
