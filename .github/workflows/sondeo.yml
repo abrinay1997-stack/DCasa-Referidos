@@ -79,22 +79,56 @@ jobs:
             echo "$1" >> "$GITHUB_STEP_SUMMARY"
           }
 
+          # ── POR QUÉ REINTENTA ──────────────────────────────────────────
+          #
+          # Publicar no es instantáneo: `wrangler deploy` vuelve cuando Cloudflare
+          # ha aceptado el Worker, no cuando todos los bordes lo sirven. Durante
+          # unos segundos hay peticiones que caen en la versión vieja y peticiones
+          # que caen en la nueva.
+          #
+          # Sondear en ese hueco da cruces rojas que no significan nada, y una
+          # cruz roja que no significa nada enseña al equipo a no mirar las cruces
+          # rojas — que es justo lo que no puede pasar el día que una sea de
+          # verdad.
+          #
+          # Así que cada llamada se reintenta hasta tres veces, con seis segundos
+          # de espera. Un fallo son TRES fallos repartidos en veinte segundos, y
+          # los intentos que no cuadraron se imprimen igual: si algo falla de vez
+          # en cuando, queda escrito aunque acabe pasando.
+          INTENTOS=3
+          ESPERA=6
+
           mirar() {
             nombre="$1"; esperado="$2"; metodo="$3"; ruta="$4"; cuerpo="${5:-}"
 
-            if [ -n "$cuerpo" ]; then
-              estado=$(curl -sS -o /tmp/r -w '%{http_code}' --max-time 40 \
-                -X "$metodo" -H 'Content-Type: application/json' --data "$cuerpo" \
-                "$SITIO$ruta" || echo 000)
-            else
-              estado=$(curl -sS -o /tmp/r -w '%{http_code}' --max-time 40 \
-                -X "$metodo" "$SITIO$ruta" || echo 000)
-            fi
+            intento=1
+            while : ; do
+              if [ -n "$cuerpo" ]; then
+                estado=$(curl -sS -o /tmp/r -w '%{http_code}' --max-time 40 \
+                  -X "$metodo" -H 'Content-Type: application/json' --data "$cuerpo" \
+                  "$SITIO$ruta" || echo 000)
+              else
+                estado=$(curl -sS -o /tmp/r -w '%{http_code}' --max-time 40 \
+                  -X "$metodo" "$SITIO$ruta" || echo 000)
+              fi
+
+              [ "$estado" = "$esperado" ] && break
+              [ "$intento" -ge "$INTENTOS" ] && break
+
+              di "   … $nombre — intento $intento contestó $estado, reintentando"
+              di "     $(head -c 300 /tmp/r)"
+              intento=$((intento + 1))
+              sleep "$ESPERA"
+            done
 
             if [ "$estado" = "$esperado" ]; then
-              di "✅ $nombre — $estado"
+              if [ "$intento" -gt 1 ]; then
+                di "✅ $nombre — $estado (al intento $intento)"
+              else
+                di "✅ $nombre — $estado"
+              fi
             else
-              di "❌ $nombre — esperaba $esperado y contestó $estado"
+              di "❌ $nombre — esperaba $esperado y contestó $estado en $INTENTOS intentos"
               fallos=$((fallos + 1))
             fi
             # El cuerpo SIEMPRE, también cuando pasa: es lo único que distingue

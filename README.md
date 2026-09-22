@@ -249,6 +249,45 @@ despliega Actions sola, un `"MODO": "desarrollo"` colado en `wrangler.jsonc` se
 publicaría sin que nadie lo leyera — así que `npm run verificar` lo rechaza y el
 flujo se para antes de migrar nada.
 
+### Lo publicado se comprueba en vivo, y no es por gusto
+
+Las pruebas del repositorio corren contra una base local y un **runtime local**,
+y hay cosas que la máquina de uno hace y la de Cloudflare no. Una de ellas costó
+una tarde y dejó el programa inservible sin que nada se pusiera rojo:
+
+> `NotSupportedError: Pbkdf2 failed: iteration counts above 100000 are not`
+> `supported (requested 210000).`
+
+Cloudflare no acepta más de **100.000 vueltas de PBKDF2**. El código pedía
+210.000, el runtime local no pone ese límite, y arriba reventaba todo lo que
+toca un PIN: registrarse, reclamar la ficha, entrar, reiniciar el PIN. Las
+ventas, la libreta, los reportes y el panel funcionaban perfectamente —ninguno
+deriva nada—, así que desde fuera parecía que el sistema estaba bien. Se
+descubrió porque el dueño no pudo entrar a su propia cuenta.
+
+Ahora hay dos guardias, y hacen falta los dos:
+
+- **`node herramientas/verificar.mjs`** para el despliegue si alguien sube las
+  vueltas por encima del techo, o si el señuelo de `derivarEnVano` vuelve a
+  tener el número escrito a mano en vez de salir de `ITERACIONES`. Lo segundo
+  importa tanto como lo primero: si los dos números se separan, entrar con un
+  número que no existe tarda distinto que entrar con uno que sí, y la pantalla
+  de acceso vuelve a ser un detector de clientes de D'CASA.
+- **`.github/workflows/sondeo.yml`** llama a lo publicado después de cada
+  despliegue, desde fuera, como lo llamaría un cliente con su teléfono. Cada
+  llamada aísla una pieza —el Worker, sus reglas, la base, la derivación del
+  PIN, la puerta del panel— para que el fallo diga *cuál* y no solo *que*. Se
+  puede lanzar a mano desde Actions cuando algo huela mal, sin desplegar.
+
+  Ninguna de sus llamadas escribe nada. La que prueba el PIN entra con el
+  número `00000000`, que `telefonoValido` rechaza y por tanto ninguna ficha
+  puede tener: con un celular real le sumaríamos un intento fallido a alguien,
+  y a los cinco su cuenta se bloquea sola.
+
+Y `GET /api/salud?probar=pin` deriva un PIN de verdad y devuelve el mensaje de
+la plataforma tal cual si no puede. Un `/api/salud` que diga «en pie» mientras
+nadie puede entrar es un `/api/salud` que miente.
+
 ### El dominio, y el aviso más caro del proyecto
 
 **Un QR impreso es permanente.** En cuanto haya mil volantes, un pendón en la
