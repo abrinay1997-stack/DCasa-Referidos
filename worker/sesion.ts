@@ -199,6 +199,34 @@ export async function derivacionEnPie(
   }
 }
 
+/**
+ * ¿Se puede FIRMAR una sesión aquí?
+ *
+ * Es el otro medio paso que le falta a alguien para entrar, y falla distinto:
+ * derivar el PIN usa `PIMIENTA_PIN` y firmar usa `SECRETO_SESION`. Si el
+ * segundo secreto no estuviera puesto, `TextEncoder().encode(undefined)` da
+ * cero bytes y HMAC rechaza una clave vacía — así que registrarse y entrar
+ * darían 500 DESPUÉS de haber guardado el PIN, con el socio ya escrito en la
+ * base y sin sesión. Un estado que desde fuera se ve como «falló», y por
+ * dentro dejó media cuenta hecha.
+ *
+ * Se emite y se vuelve a leer, porque emitir sin leer no prueba que la firma
+ * cuadre consigo misma.
+ */
+export async function firmaEnPie(env: Env): Promise<{ ok: boolean; motivo?: string }> {
+  try {
+    const ahora = new Date();
+    const token = await emitirSesion('DCA000000', ahora.toISOString(), env, ahora);
+    const leido = await leerSesion(token, env, ahora);
+    if (leido.c !== 'DCA000000') {
+      return { ok: false, motivo: 'La sesión firmada no dice lo que se le puso dentro.' };
+    }
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, motivo: error instanceof Error ? `${error.name}: ${error.message}` : String(error) };
+  }
+}
+
 /** Un PIN temporal para dictar en el mostrador, sin patrones adivinables. */
 export function pinTemporal(): string {
   // Se rechaza y se vuelve a tirar en vez de arreglar el número a mano: cambiar

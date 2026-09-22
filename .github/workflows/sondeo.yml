@@ -149,18 +149,22 @@ jobs:
           mirar "SE DERIVA UN PIN"      401 POST "/api/socio/entrar" '{"telefono":"","pin":"418290"}'
           mirar "las dos cosas juntas"  401 POST "/api/socio/entrar" '{"telefono":"00000000","pin":"418290"}'
 
-          # Y si derivar falla, POR QUÉ. La ruta de salud lo intenta de verdad,
-          # con las vueltas de verdad, y devuelve el mensaje de la plataforma
-          # tal cual. Sin esto uno sabe que algo se rompió y no qué hacer.
+          # Y si algo de eso falla, POR QUÉ. La ruta de salud hace los dos medios
+          # pasos que le faltan a alguien para entrar —derivar su PIN y firmar su
+          # sesión— de verdad, y devuelve el mensaje de la plataforma tal cual.
+          # Sin esto uno sabe que algo se rompió y no qué hacer.
+          #
+          # Son dos secretos distintos: derivar usa PIMIENTA_PIN y firmar usa
+          # SECRETO_SESION. Si faltara el segundo, registrarse daría 500 DESPUÉS
+          # de haber guardado el PIN — media cuenta hecha y sin sesión.
           curl -sS -o /tmp/pin --max-time 40 "$SITIO/api/salud?probar=pin" >/dev/null 2>&1 || true
           if grep -q '"ok":false' /tmp/pin 2>/dev/null; then
-            di "❌ derivar un PIN, preguntado a la cara:"
-            di "     $(head -c 500 /tmp/pin)"
+            di "❌ derivar el PIN y firmar la sesión, preguntado a la cara:"
             fallos=$((fallos + 1))
           else
-            di "✅ derivar un PIN, preguntado a la cara"
-            di "     $(head -c 500 /tmp/pin)"
+            di "✅ derivar el PIN y firmar la sesión, preguntado a la cara"
           fi
+          di "     $(head -c 600 /tmp/pin)"
 
           # El panel es al revés: aquí lo que no puede pasar es un 200. Un 302 es
           # Access mandando a identificarse, y un 503 es el Worker negándose a

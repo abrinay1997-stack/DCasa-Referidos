@@ -42,7 +42,7 @@ import * as canjes from './canjes';
 import * as reportes from './reportes';
 import * as clientes from './clientes';
 import * as ventas from './ventas';
-import { COOKIE_SESION, cookieBorrada, cookieDe, derivacionEnPie, leerSesion } from './sesion';
+import { COOKIE_SESION, cookieBorrada, cookieDe, derivacionEnPie, firmaEnPie, leerSesion } from './sesion';
 
 /** Todo lo del equipo cuelga de aquí. Ver la cabecera. */
 const ZONA_PRIVADA = '/panel';
@@ -397,6 +397,7 @@ async function zonaPublica(peticion: Request, url: URL, env: Env): Promise<Respo
     };
     if (url.searchParams.get('probar') === 'pin') {
       cuerpo.derivacion = await derivacionEnPie(env);
+      cuerpo.firma = await firmaEnPie(env);
     }
     return json(cuerpo);
   }
