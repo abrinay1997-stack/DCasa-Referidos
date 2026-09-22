@@ -80,8 +80,8 @@
     // cada llamada, sin sesión que caducar: el token está bien y es la
     // comparación la que no puede cuadrar. En PanaClaw eso costó una tarde.
     // `node herramientas/verificar.mjs` lo para antes de construir.
-    "ACCESO_DOMINIO": "PENDIENTE",
-    "ACCESO_AUD": "PENDIENTE"
+    "ACCESO_DOMINIO": "orange-brook-5740.cloudflareaccess.com",
+    "ACCESO_AUD": "9648dfae6b21bf33c386b55374256e434a2d0495e561db43ad2658c3a416cbdb"
   },
 
   // SECRETOS, que NO van aquí y se ponen con `wrangler secret put`:

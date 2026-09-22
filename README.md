@@ -224,6 +224,23 @@ Al empujar ese cambio, el flujo despliega solo.
 > costó una tarde. `npm run verificar` lo para antes de construir, así que un
 > valor mal copiado ya no llega a desplegarse.
 
+### Por qué se comprueban los dos, y no solo el dominio
+
+**El Team domain es uno por cuenta de Cloudflare**, no por aplicación.
+`orange-brook-5740.cloudflareaccess.com` es la organización entera de Zero
+Trust, y lo comparten este panel, el hub de PanaClaw y cualquier otra
+herramienta que se proteja en esa cuenta.
+
+**El AUD sí es único por aplicación**, y es lo único que las separa. Si el
+Worker comprobara solo el dominio, cualquiera autorizado en `hub-panaclaw`
+entraría también aquí: su token estaría firmado por el mismo equipo y sería
+perfectamente válido. Por eso `worker/acceso.ts` compara las dos cosas, y por
+eso ninguna de las dos se puede quitar «porque ya está la otra».
+
+Ninguno de los dos valores es un secreto —son identificadores, y salen en el
+propio panel de Cloudflare—, así que viven en `wrangler.jsonc` versionado, igual
+que en los dos hubs hermanos.
+
 ### Una cosa que el flujo vigila por ti
 
 `MODO=desarrollo` salta la comprobación de Access entera y deja el panel abierto
