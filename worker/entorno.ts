@@ -45,4 +45,14 @@ export interface Env {
 
   /** Con quién se firma lo que se haga en el panel durante `npm run dev`. */
   CORREO_DESARROLLO?: string;
+
+  /**
+   * Quién puede borrar definitivamente una ficha, separado por comas.
+   *
+   * Vacío significa «cualquiera que entre al panel», que es lo correcto
+   * mientras detrás de Access haya una sola persona y lo dejará de ser en
+   * cuanto entren las vendedoras. El panel lo avisa en pantalla mientras siga
+   * vacío. Ver `wrangler.jsonc`.
+   */
+  CORREOS_ADMIN?: string;
 }

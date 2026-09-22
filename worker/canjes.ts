@@ -20,6 +20,7 @@
  */
 
 import { ErrorPeticion, cuerpoJson } from './http';
+import { anioEnPanama, diaYMesEnPanama } from './reloj';
 import { REGLAS } from './reglas';
 import { ALFABETO_CODIGO } from '../compartido/socios';
 import { sentenciaAsiento } from './movimientos';
@@ -520,8 +521,11 @@ export async function felicitarALosDeHoy(base: D1Database): Promise<number> {
   if (puntos === null || puntos <= 0) return 0;
 
   const ahora = new Date();
-  const hoy = ahora.toISOString().slice(5, 10); // 'MM-DD'
-  const desdeEneroUno = `${ahora.getUTCFullYear()}-01-01T00:00:00.000Z`;
+  // EL DÍA QUE ES EN PANAMÁ, no en UTC. El Worker corre cinco horas por delante
+  // de La Chorrera: a las 7 de la tarde del 14, en UTC ya es el 15, y sin esto
+  // el regalo caía la tarde anterior al cumpleaños de cada uno.
+  const hoy = diaYMesEnPanama(ahora);
+  const desdeEneroUno = `${anioEnPanama(ahora)}-01-01T00:00:00.000Z`;
 
   const { results } = await base
     .prepare(

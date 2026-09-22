@@ -40,6 +40,8 @@ import { queEstaEncendido, REGLAS } from './reglas';
 import * as referidos from './referidos';
 import * as canjes from './canjes';
 import * as reportes from './reportes';
+import * as clientes from './clientes';
+import * as ventas from './ventas';
 import { COOKIE_SESION, cookieBorrada, cookieDe, leerSesion } from './sesion';
 
 /** Todo lo del equipo cuelga de aquí. Ver la cabecera. */
@@ -154,7 +156,14 @@ async function zonaPrivada(peticion: Request, url: URL, env: Env): Promise<Respo
   const base = env.BASE;
 
   if (ruta === 'yo' && metodo === 'GET') {
-    return json({ correo, encendido: queEstaEncendido() });
+    return json({
+      correo,
+      encendido: queEstaEncendido(),
+      admin: esAdmin(correo, env),
+      // Mientras la lista esté vacía, cualquiera que entre puede borrar. La
+      // pantalla lo avisa; ver `CORREOS_ADMIN` en wrangler.jsonc.
+      adminSinLista: !(env.CORREOS_ADMIN ?? '').trim(),
+    });
   }
 
   // Dar de alta desde el mostrador. Es la misma alta que hace el socio solo,
@@ -246,7 +255,69 @@ async function zonaPrivada(peticion: Request, url: URL, env: Env): Promise<Respo
     });
   }
 
-  // Fase 3 en adelante: referidos, canjes, premios y reportes.
+  // --- Las ventas -------------------------------------------------------
+
+  if (ruta === 'ventas' && metodo === 'POST') {
+    return json(await ventas.emitir(base, peticion, correo), 201);
+  }
+
+  if (ruta === 'ventas' && metodo === 'GET') {
+    return json(
+      await ventas.listar(base, {
+        texto: url.searchParams.get('q') ?? '',
+        cliente: url.searchParams.get('cliente') ?? undefined,
+        pagina: Number(url.searchParams.get('pagina') ?? 1),
+        anuladas: url.searchParams.get('anuladas') === 'si',
+      }),
+    );
+  }
+
+  const anularVenta = /^ventas\/([^/]+)\/anular$/.exec(ruta);
+  if (anularVenta && metodo === 'POST') {
+    return json(await ventas.anular(base, decodeURIComponent(anularVenta[1]!), peticion, correo));
+  }
+
+  const verVenta = /^ventas\/([^/]+)$/.exec(ruta);
+  if (verVenta && metodo === 'GET') {
+    return json(await ventas.porNumero(base, decodeURIComponent(verVenta[1]!)));
+  }
+
+  // --- La libreta de clientes -------------------------------------------
+
+  if (ruta === 'clientes' && metodo === 'GET') {
+    const reclamadas = url.searchParams.get('reclamadas');
+    return json(
+      await clientes.listar(base, {
+        texto: url.searchParams.get('q') ?? '',
+        estado: url.searchParams.get('estado') ?? '',
+        atendidoPor: url.searchParams.get('atiende') ?? '',
+        reclamadas: reclamadas === 'si' || reclamadas === 'no' ? reclamadas : undefined,
+        papelera: url.searchParams.get('papelera') === 'si',
+        pagina: Number(url.searchParams.get('pagina') ?? 1),
+      }),
+    );
+  }
+
+  // Las acciones van ANTES del detalle, por lo mismo que en socios: sin este
+  // orden, «retirar» se leería como el código de un cliente que se llama así.
+  const accionCliente = /^clientes\/([^/]+)\/([a-z-]+)$/.exec(ruta);
+  if (accionCliente && metodo === 'POST') {
+    const codigo = decodeURIComponent(accionCliente[1]!).toUpperCase();
+    if (accionCliente[2] === 'retirar') return json(await clientes.retirar(base, codigo, correo));
+    if (accionCliente[2] === 'restaurar') return json(await clientes.restaurar(base, codigo));
+    if (accionCliente[2] === 'borrar') {
+      exigirAdmin(correo, env);
+      return json(await clientes.borrarDeVerdad(base, codigo, correo));
+    }
+  }
+
+  const detalleCliente = /^clientes\/([^/]+)$/.exec(ruta);
+  if (detalleCliente) {
+    const codigo = decodeURIComponent(detalleCliente[1]!).toUpperCase();
+    if (metodo === 'GET') return json(await fichaEntera(base, codigo));
+    if (metodo === 'POST') return json(await clientes.corregir(base, codigo, peticion, correo));
+  }
+
   throw new ErrorPeticion(404, 'no-encontrada', 'Esa dirección no existe.');
 }
 
@@ -487,6 +558,108 @@ async function buscarSocios(base: D1Database, consulta: string) {
       telefono: `****-${f.telefono_normal.slice(-4)}`,
       estado: f.estado,
       saldo: f.saldo,
+    })),
+  };
+}
+
+/**
+ * Quién manda, para lo único que lo necesita: borrar una ficha del todo.
+ *
+ * Todo lo demás del panel lo puede hacer cualquiera que entre, porque la puerta
+ * ya es Access y quien está detrás es el equipo. Lo que se separa aquí es lo
+ * único que no se deshace.
+ *
+ * LA LISTA VACÍA DEJA ENTRAR A TODOS, y es deliberado: hoy detrás de Access hay
+ * una sola persona, y un sistema que al desplegarse deja a su dueño sin poder
+ * borrar nada no es más seguro, es más molesto. En cuanto entren las vendedoras
+ * hay que poner los correos, y la pantalla lo recuerda mientras no estén.
+ */
+function esAdmin(correo: string, env: Env): boolean {
+  const lista = (env.CORREOS_ADMIN ?? '')
+    .split(',')
+    .map((c) => c.trim().toLowerCase())
+    .filter(Boolean);
+  if (!lista.length) return true;
+  return lista.includes(correo.trim().toLowerCase());
+}
+
+function exigirAdmin(correo: string, env: Env): void {
+  if (esAdmin(correo, env)) return;
+  throw new ErrorPeticion(
+    403,
+    'sin-permiso',
+    'Borrar una ficha del todo no está a tu alcance. Pídeselo a quien administra el panel.',
+  );
+}
+
+/**
+ * Todo lo que se sabe de una persona, en una sola respuesta.
+ *
+ * Es la pantalla que responde de una vez las preguntas que antes obligaban a
+ * mirar en cuatro sitios: quién es, qué compró, cuántos puntos tiene y de dónde
+ * salieron, y a quién trajo.
+ *
+ * Va en una sola llamada y no en cuatro a propósito: la ficha se abre con el
+ * cliente delante y cuatro viajes por una red de tienda son cuatro esperas.
+ */
+async function fichaEntera(base: D1Database, codigo: string) {
+  const fila = await base
+    .prepare(
+      `SELECT codigo, nombre, apellido, telefono, telefono_normal, cedula, cedula_digitos,
+              correo, correo_normal, cumple, direccion, notas, atendido_por, estado, pin_hash,
+              referido_por, referido_pagado_en, terminos_version, creado_en, creado_por,
+              actualizado_en, eliminado_en, eliminado_por
+         FROM socios WHERE codigo = ?`,
+    )
+    .bind(codigo)
+    .first<Parameters<typeof clientes.comoFicha>[0]>();
+
+  if (!fila) throw new ErrorPeticion(404, 'no-encontrada', 'Esa ficha no existe.');
+
+  const [saldo, bitacora, sus, susVentas, padrino, traidos] = await Promise.all([
+    saldoDe(base, codigo),
+    bitacoraDe(base, codigo),
+    compras.deSocio(base, codigo),
+    ventas.deCliente(base, codigo),
+    socios.padrinoDe(base, codigo),
+    base
+      .prepare(
+        `SELECT s.codigo, s.nombre, s.apellido, s.creado_en,
+                EXISTS (SELECT 1 FROM compras c
+                         WHERE c.socio_codigo = s.codigo AND c.anulada_en IS NULL AND c.puntos > 0) AS compro
+           FROM socios s
+          WHERE s.referido_por = ? AND s.eliminado_en IS NULL
+          ORDER BY s.creado_en DESC LIMIT 50`,
+      )
+      .bind(codigo)
+      .all<{ codigo: string; nombre: string; apellido: string; creado_en: string; compro: number }>(),
+  ]);
+
+  // Lo comprado se suma AQUÍ y no se guarda en ninguna columna, por lo mismo
+  // que el saldo: una cifra guardada es una cifra que un día deja de cuadrar
+  // con las filas que la explican.
+  const dinero = await base
+    .prepare(
+      `SELECT COALESCE(SUM(monto_centavos), 0) AS total, COUNT(*) AS cuantas
+         FROM compras WHERE socio_codigo = ? AND anulada_en IS NULL`,
+    )
+    .bind(codigo)
+    .first<{ total: number; cuantas: number }>();
+
+  return {
+    cliente: clientes.comoFicha(fila),
+    saldo,
+    compradoCentavos: dinero?.total ?? 0,
+    cuantasCompras: dinero?.cuantas ?? 0,
+    bitacora: bitacora.filas,
+    compras: sus,
+    ventas: susVentas,
+    padrino,
+    traidos: (traidos.results ?? []).map((t) => ({
+      codigo: t.codigo,
+      nombre: `${t.nombre} ${t.apellido ?? ''}`.trim(),
+      creadoEn: t.creado_en,
+      compro: Boolean(t.compro),
     })),
   };
 }

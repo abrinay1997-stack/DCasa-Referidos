@@ -81,7 +81,22 @@
     // comparación la que no puede cuadrar. En PanaClaw eso costó una tarde.
     // `node herramientas/verificar.mjs` lo para antes de construir.
     "ACCESO_DOMINIO": "orange-brook-5740.cloudflareaccess.com",
-    "ACCESO_AUD": "9648dfae6b21bf33c386b55374256e434a2d0495e561db43ad2658c3a416cbdb"
+    "ACCESO_AUD": "9648dfae6b21bf33c386b55374256e434a2d0495e561db43ad2658c3a416cbdb",
+
+    // Quién puede BORRAR DEFINITIVAMENTE una ficha de la papelera, separado por
+    // comas. El resto de lo que hace el panel lo puede hacer cualquiera que
+    // entre: la puerta ya es Access.
+    //
+    // VACÍO SIGNIFICA «CUALQUIERA QUE ENTRE AL PANEL», y hoy eso es correcto
+    // porque detrás de Access hay una sola persona. En cuanto entren las
+    // vendedoras hay que poner aquí los correos de quien mande — el panel lo
+    // avisa en pantalla mientras esto siga vacío, para que no se quede así por
+    // olvido.
+    //
+    // Que esté aquí y no en un secreto es a propósito: una lista de correos del
+    // equipo no es una credencial, y tenerla a la vista en el repositorio es lo
+    // que hace que alguien se dé cuenta de que hay que actualizarla.
+    "CORREOS_ADMIN": ""
   },
 
   // SECRETOS, que NO van aquí y se ponen con `wrangler secret put`:

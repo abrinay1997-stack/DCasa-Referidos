@@ -38,7 +38,7 @@ import {
   type Socio,
   type SocioBreve,
 } from '../compartido/socios';
-import { correoNormal, soloDigitos, whatsappNormal } from '../compartido/texto';
+import { correoNormal, pareceCorreo, sinTildes, soloDigitos, whatsappNormal } from '../compartido/texto';
 import { choco, columnaDelChoque } from '../compartido/choques';
 
 /** La fila, tal como sale de la base. */
@@ -149,6 +149,13 @@ export async function registrar(
     throw new ErrorPeticion(400, 'invalida', 'Esa fecha de cumpleaños no existe.');
   }
 
+  // El correo es opcional, pero uno mal escrito es peor que ninguno: se guarda,
+  // nadie lo vuelve a mirar, y el día que haga falta escribirle rebota.
+  const correo = (datos.correo ?? '').trim();
+  if (correo && !pareceCorreo(correo)) {
+    throw new ErrorPeticion(400, 'invalida', 'Ese correo no parece un correo. Revísalo o déjalo vacío.');
+  }
+
   // ¿Ya está? Se mira ANTES de derivar el PIN, que tarda.
   const existente = await porTelefono(base, telNormal);
   if (existente) {
@@ -198,10 +205,10 @@ export async function registrar(
         .prepare(
           `INSERT INTO socios
              (codigo, nombre, apellido, telefono, telefono_normal, cedula, cedula_digitos,
-              correo, correo_normal, cumple, pin_hash, pin_salt, pin_iteraciones,
+              correo, correo_normal, cumple, nombre_normal, pin_hash, pin_salt, pin_iteraciones,
               pin_cambiado_en, referido_por, referido_en, terminos_version,
               terminos_aceptados_en, creado_en, creado_por, actualizado_en)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           codigo,
@@ -211,9 +218,10 @@ export async function registrar(
           telNormal,
           (datos.cedula ?? '').trim(),
           soloDigitos(datos.cedula),
-          (datos.correo ?? '').trim(),
-          correoNormal(datos.correo),
+          correo,
+          correoNormal(correo),
           (datos.cumple ?? '').trim(),
+          sinTildes(`${nombre} ${(datos.apellido ?? '').trim()}`),
           pin.hash,
           pin.sal,
           pin.iteraciones,
