@@ -35,6 +35,13 @@ Cada una cuesta dinero real o un cliente si se rompe.
 5. **Los puntos de referido se pagan con la primera compra verificada**, nunca
    al registrarse, y `referido_por` se escribe una vez y no se modifica jamás.
 
+6. **Un cliente y un socio son LA MISMA FICHA.** Hay una tabla, `socios`, y
+   estar en el programa es un estado suyo: con PIN es un socio, sin PIN es un
+   cliente que todavía no la reclamó. No crees una tabla `clientes`: en cuanto
+   hay dos, alguien tiene que responder «¿este cliente es aquel socio?» en cada
+   venta, y cada vez que se responde mal los puntos de una persona quedan
+   partidos entre dos fichas. La llave es el celular, y ya tiene índice único.
+
 ---
 
 ## 2. Antes de dar por terminado cualquier cambio
@@ -100,9 +107,34 @@ scripts/        construir.mjs — verificar → probar → construir. Nunca a me
 pruebas/        Las reglas del dinero, caso por caso.
 index.html      La app del socio. Sin construir y sin dependencias.
 socio/          Sus pantallas: puntos, actividad, invita, premios, términos.
-panel/          El panel del equipo: compras, socios, canjes, reportes.
-hub/            El icono, la tipografía y el manifest de la app instalable.
+panel/          El panel del equipo.
+  facturas.js     Nueva venta, comprobante e historial. La facturería.
+  clientes.js     La libreta, la ficha entera y la papelera.
+  vistas.js       Compras, socios, canjes y reportes.
+hub/            El icono, la tipografía, el manifest y el selector de
+                cumpleaños, que usan las dos zonas.
 ```
+
+---
+
+## 4 bis. La facturería, en tres frases
+
+**El comprobante NO es una factura fiscal y no puede serlo.** En Panamá la
+factura la emite equipo fiscal autorizado o un proveedor habilitado por la DGI.
+Esto guarda qué se vendió, a quién y por cuánto, y lleva escrito el número de la
+factura que sí emitió la caja de la tienda. Ese número es obligatorio y único:
+es la misma defensa que ya tenía `compras` —una factura, una carga— y el ancla
+para cuadrar esto contra la contabilidad. **No le quites la línea que lo dice en
+su cara.**
+
+**Emitir es una sola operación.** Ficha + venta + compra + puntos + referido, en
+el mismo `batch`. Cualquier subconjunto sin los demás es un estado que no puede
+existir.
+
+**Los puntos corren aunque la ficha no esté reclamada, y reclamarla pide el
+código del comprobante cuando hay puntos.** Sin eso, quien supiera el celular de
+otra persona se quedaría con sus puntos. Ver `reclamar()` en `worker/socios.ts`,
+que explica también el precio de esa decisión.
 
 ---
 
@@ -124,10 +156,12 @@ cliente de D'CASA.
 
 ## 6. Por dónde sigue
 
-**Las cinco fases están hechas.** El programa acredita, canjea, vence, felicita
-y reporta. Lo que queda abierto no es código y está en el README, en «Lo que
-falta preguntarle a Marcial»: el tope por compra, qué productos entran como
-premio, qué correos más abren el panel y adónde apuntan los QR impresos.
+**Las seis fases están hechas.** El programa acredita, canjea, vence, felicita,
+reporta, factura y lleva la libreta de clientes. Lo que queda abierto no es
+código y está en el README, en «Lo que falta preguntarle a Marcial»: el tope por
+compra, qué productos entran como premio, qué correos más abren el panel —y con
+ellos `CORREOS_ADMIN`, que mientras esté vacío deja borrar a cualquiera que
+entre— y adónde apuntan los QR impresos.
 
 **Una advertencia sobre el orden**, por si añades algo: no construyas la
 pantalla antes que el libro mayor. Todo lo que ve el socio es una vista del

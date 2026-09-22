@@ -347,6 +347,48 @@ function reglaSinSaldo() {
   }
 }
 
+/**
+ * Una ficha sin PIN no puede entrar, y eso tiene que seguir escrito.
+ *
+ * Desde que una venta crea la ficha de alguien que no se registró, `pin_hash`
+ * puede ser la cadena vacía. La base NO lo impide con un CHECK —añadirlo obliga
+ * a reconstruir `socios` con cuatro claves foráneas apuntando a ella, ver
+ * `0005_ficha.sql`— así que la invariante vive en dos sitios del código, y esta
+ * comprobación es lo que impide que alguien se lleve por delante cualquiera de
+ * los dos sin enterarse:
+ *
+ *   · `worker/sesion.ts` devuelve `false` en vez de derivar con 0 iteraciones,
+ *     que lanza.
+ *   · `worker/socios.ts` rechaza la entrada ANTES de comparar, y lo hace igual
+ *     que a un número que no existe.
+ *
+ * Sin el primero, intentar entrar con una ficha sin reclamar daba un 500. Sin
+ * el segundo, el rechazo llegaría en 2 ms en vez de en 300 y el reloj diría lo
+ * que el mensaje calla.
+ */
+function reglaFichaSinPin() {
+  const sesion = readFileSync(join(RAIZ, 'worker/sesion.ts'), 'utf8');
+  if (!/if \(!guardado\.hash \|\| !guardado\.iteraciones\) return false;/.test(sesion)) {
+    error(
+      'worker/sesion.ts',
+      0,
+      `Falta el corte de «pinCoincide» para una ficha sin PIN. Sin él, PBKDF2 con ` +
+        `0 iteraciones lanza y un intento de entrar se convierte en un 500.`,
+    );
+  }
+
+  const socios = readFileSync(join(RAIZ, 'worker/socios.ts'), 'utf8');
+  if (!/if \(!fila\.pin_hash\) \{\s*\n\s*await derivarEnVano/.test(socios)) {
+    error(
+      'worker/socios.ts',
+      0,
+      `Falta el rechazo de una ficha sin reclamar en «entrar()», derivando en vano ` +
+        `antes. Sin él, la pantalla de acceso contesta distinto —o más rápido— para ` +
+        `un número que es cliente de D'CASA, y eso la convierte en un detector.`,
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 5. La forma de los dos datos de Access
 // ---------------------------------------------------------------------------
@@ -587,6 +629,7 @@ reglaCombinaciones();
 reglaComentarios();
 reglaTipografia();
 reglaSinSaldo();
+reglaFichaSinPin();
 reglaPuerta();
 reglaEconomia();
 reglaSecretos();

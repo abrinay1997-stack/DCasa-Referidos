@@ -95,6 +95,17 @@ export async function guardarPin(pin: string, env: Env): Promise<PinGuardado> {
  * de PIN. Aquí se recorren SIEMPRE los 32 bytes y se acumula la diferencia.
  */
 export async function pinCoincide(pin: string, guardado: PinGuardado, env: Env): Promise<boolean> {
+  // UNA FICHA SIN RECLAMAR NO TIENE PIN, y aquí eso se responde «no» y no con
+  // una excepción. Su `pin_hash` es la cadena vacía (ver `0005_ficha.sql`), que
+  // no es el resultado de derivar nada y no puede coincidir con nada — pero
+  // `iteraciones = 0` hace que PBKDF2 lance, y lanzar aquí convertía un intento
+  // de entrar en un 500 en vez de en el «no coinciden» de siempre.
+  //
+  // No se deriva en vano dentro de este `if` porque quien llama ya lo hace: el
+  // camino de `entrar()` lo decide antes, para que el reloj no diga lo que el
+  // mensaje calla.
+  if (!guardado.hash || !guardado.iteraciones) return false;
+
   const esperado = deBase64(guardado.hash);
   const calculado = await derivar(pin, deBase64(guardado.sal), guardado.iteraciones, env.PIMIENTA_PIN);
 

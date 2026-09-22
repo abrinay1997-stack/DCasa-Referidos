@@ -25,9 +25,23 @@ export function el(etiqueta, atributos = {}, hijos = []) {
   return nodo;
 }
 
-const aviso = (texto, tono = 'malo') => el('p', { clase: `aviso ${tono}`, texto, role: 'alert' });
+/**
+ * Repinta un nodo saltándose los hijos vacíos.
+ *
+ * `replaceChildren(null)` NO se salta el null: lo convierte en el texto
+ * «null» y lo pinta. `el()` sí lo filtra, así que un `null` entre hijos es
+ * inofensivo dentro de `el(...)` y visible fuera. Esta función cierra esa
+ * diferencia, que ya costó un «null» impreso al final de la lista de clientes
+ * —el paginador, que devuelve null cuando solo hay una página—.
+ */
+export function rellenar(nodo, ...hijos) {
+  nodo.replaceChildren(...hijos.flat().filter(Boolean));
+  return nodo;
+}
 
-function campo({ id, etiqueta, nota, ...resto }) {
+export const aviso = (texto, tono = 'malo') => el('p', { clase: `aviso ${tono}`, texto, role: 'alert' });
+
+export function campo({ id, etiqueta, nota, ...resto }) {
   return el('label', { clase: 'campo', for: id }, [
     el('span', { clase: 'etiqueta', texto: etiqueta }),
     el('input', { id, name: id, ...resto }),
@@ -36,7 +50,7 @@ function campo({ id, etiqueta, nota, ...resto }) {
 }
 
 /** Bloquea el botón mientras trabaja y enseña el fallo donde se vea. */
-function alEnviar(formulario, boton, accion) {
+export function alEnviar(formulario, boton, accion) {
   formulario.addEventListener('submit', async (evento) => {
     evento.preventDefault();
     formulario.querySelectorAll('.aviso').forEach((n) => n.remove());

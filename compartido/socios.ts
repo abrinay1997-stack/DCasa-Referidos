@@ -214,6 +214,14 @@ export interface DatosAlta {
   correo?: string;
   /** El código del QR, si vino por uno. */
   referido?: string;
+  /**
+   * SU PROPIO código, el que sale impreso en su comprobante de venta.
+   *
+   * No hace falta para darse de alta. Hace falta para RECLAMAR una ficha que ya
+   * tiene puntos: sin él, cualquiera que supiera un celular ajeno se quedaría
+   * con los puntos de esa persona. Ver `reclamar()` en `worker/socios.ts`.
+   */
+  codigo?: string;
   /** La casilla del consentimiento. Sin esto no hay alta. */
   acepta: boolean;
 }

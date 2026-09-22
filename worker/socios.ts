@@ -159,6 +159,22 @@ export async function registrar(
   // ¿Ya está? Se mira ANTES de derivar el PIN, que tarda.
   const existente = await porTelefono(base, telNormal);
   if (existente) {
+    // ---------------------------------------------------------------------
+    // LA FICHA SIN RECLAMAR: ESTO NO ES UN ALTA, ES RECLAMARLA
+    //
+    // Esta persona ya compró en la tienda, así que tiene ficha y tiene puntos,
+    // y lo que está haciendo ahora es entrar al programa. Decirle «ese número
+    // ya tiene cuenta, entra con tu PIN» sería mandarla a usar un PIN que no
+    // existe, y dejar sus puntos donde nadie los alcanza — que es tanto como
+    // no tener programa.
+    //
+    // Reclamar CONSERVA su código, sus compras y sus puntos. Solo escribe lo
+    // que faltaba: el PIN y el consentimiento.
+    // ---------------------------------------------------------------------
+    if (!existente.eliminado_en && !existente.pin_hash) {
+      return reclamar(base, existente, datos, creadoPor, env);
+    }
+
     if (existente.eliminado_en) {
       // Restaurarlo aquí sería dejar que cualquiera con su número reviva una
       // cuenta retirada y se quede con sus puntos. Lo hace una vendedora, con
@@ -293,6 +309,127 @@ export async function registrar(
   throw new ErrorPeticion(500, 'fallo', 'No se pudo asignar un código. Vuelve a intentarlo.');
 }
 
+/**
+ * Reclamar una ficha que ya existía: quien compró entra al programa.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUÉ PIDE EL CÓDIGO DEL COMPROBANTE CUANDO HAY PUNTOS
+ *
+ * Sin esa comprobación, cualquiera que supiera el celular de otra persona
+ * podría reclamar su ficha y quedarse con sus puntos. No hace falta adivinar
+ * nada: basta con conocer el número de un vecino que compra en D'CASA.
+ *
+ * El código de la ficha —`DCA…`— va impreso en cada comprobante de venta, así
+ * que quien de verdad hizo la compra lo tiene en la mano. Es el segundo dato, y
+ * es el que convierte «sé tu número» en «estuve en esa compra».
+ *
+ * Solo se pide cuando hay algo que proteger. Una ficha sin puntos no tiene nada
+ * que robar, y exigirle el papel a alguien que no gana nada con reclamarla solo
+ * serviría para que no lo hiciera.
+ *
+ * EL PRECIO DE ESTO, dicho en voz alta: la respuesta deja ver que ese celular
+ * tiene ficha con puntos en D'CASA. Es un dato menor —quien ve a alguien salir
+ * de la tienda ya lo sabe— y se cambia por impedir que le quiten el dinero. Si
+ * algún día se quiere cerrar también esa rendija, el camino es un código por
+ * SMS, no callar aquí.
+ *
+ * Y si perdió el comprobante no se queda fuera: pasa por la tienda y una
+ * vendedora se lo dice con él delante, que es la misma comprobación por otra
+ * vía.
+ */
+async function reclamar(
+  base: D1Database,
+  ficha: Fila,
+  datos: DatosAlta,
+  desde: string,
+  env: Env,
+): Promise<{ socio: Socio; cookie: string }> {
+  const saldo = await base
+    .prepare(`SELECT COALESCE(SUM(puntos), 0) AS saldo FROM movimientos WHERE socio_codigo = ?`)
+    .bind(ficha.codigo)
+    .first<{ saldo: number }>();
+
+  if ((saldo?.saldo ?? 0) > 0) {
+    const dado = codigoNormal(datos.codigo ?? '');
+    if (dado !== ficha.codigo) {
+      throw new ErrorPeticion(
+        409,
+        'invalida',
+        'Ya tienes compras registradas con ese número, así que tus puntos te esperan. ' +
+          'Para reclamarlos escribe el código que aparece en tu comprobante, o pasa por ' +
+          'la tienda y te ayudamos.',
+        'codigo',
+      );
+    }
+  }
+
+  if (ficha.estado === 'suspendido') {
+    throw new ErrorPeticion(
+      403,
+      'suspendida',
+      'Esa ficha está suspendida. Escríbenos por WhatsApp y lo revisamos.',
+    );
+  }
+
+  const pin = await guardarPin(datos.pin, env);
+  const ahora = new Date().toISOString();
+
+  // Rellena huecos y NO pisa nada. El apellido que la vendedora escribió
+  // mirando la cédula vale más que el que se teclea de prisa en un teléfono, y
+  // quien reclama no tiene por qué volver a dar lo que ya dio.
+  const soloSiFalta = (nuevo: string | undefined, viejo: string) =>
+    viejo.trim() ? viejo : (nuevo ?? '').trim();
+
+  const correo = soloSiFalta(datos.correo, ficha.correo);
+  if (correo && !pareceCorreo(correo)) {
+    throw new ErrorPeticion(400, 'invalida', 'Ese correo no parece un correo. Revísalo o déjalo vacío.');
+  }
+
+  const apellido = soloSiFalta(datos.apellido, ficha.apellido);
+  const cumple = soloSiFalta(datos.cumple, ficha.cumple);
+
+  await base
+    .prepare(
+      `UPDATE socios
+          SET pin_hash = ?, pin_salt = ?, pin_iteraciones = ?, pin_cambiado_en = ?,
+              pin_temporal = 0, intentos_fallidos = 0, bloqueado_hasta = NULL,
+              apellido = ?, nombre_normal = ?, correo = ?, correo_normal = ?, cumple = ?,
+              terminos_version = ?, terminos_aceptados_en = ?, actualizado_en = ?
+        WHERE codigo = ? AND pin_hash = ''`,
+    )
+    .bind(
+      pin.hash,
+      pin.sal,
+      pin.iteraciones,
+      ahora,
+      apellido,
+      sinTildes(`${ficha.nombre} ${apellido}`),
+      correo,
+      correoNormal(correo),
+      cumple,
+      VERSION_TERMINOS,
+      ahora,
+      ahora,
+      ficha.codigo,
+    )
+    .run();
+
+  console.log(`Ficha ${ficha.codigo} reclamada desde ${desde}.`);
+
+  const fresca = await porCodigo(base, ficha.codigo);
+  if (!fresca || !fresca.pin_hash) {
+    // El `WHERE pin_hash = ''` no escribió: otra petición reclamó la ficha en
+    // el mismo instante. Quien pierda la carrera no se lleva una sesión de una
+    // cuenta cuyo PIN no puso.
+    throw new ErrorPeticion(409, 'repetida', 'Esa cuenta se acaba de activar. Entra con tu PIN.');
+  }
+
+  return {
+    socio: comoSocio(fresca),
+    cookie: cookieSesion(await emitirSesion(fresca.codigo, fresca.pin_cambiado_en, env)),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // La entrada
 // ---------------------------------------------------------------------------
@@ -329,6 +466,19 @@ export async function entrar(
   const fila = telNormal ? await porTelefono(base, telNormal) : null;
 
   if (!fila || fila.eliminado_en) {
+    await derivarEnVano(pin, env);
+    throw noCuadra();
+  }
+
+  // UNA FICHA SIN RECLAMAR NO PUEDE ENTRAR, y se le responde exactamente lo
+  // mismo que a un número que no existe. Decirle «esa ficha todavía no tiene
+  // PIN» convertiría esta pantalla en un detector de clientes de D'CASA: se
+  // teclean números y se ve cuáles contestan distinto.
+  //
+  // Se deriva en vano antes de rechazar, por lo mismo que arriba: sin eso, la
+  // respuesta llega en 2 ms para la ficha sin PIN y en 300 ms para la que sí lo
+  // tiene, y el reloj cuenta lo que el mensaje calla.
+  if (!fila.pin_hash) {
     await derivarEnVano(pin, env);
     throw noCuadra();
   }
@@ -505,6 +655,23 @@ export async function reiniciarPin(
 ): Promise<{ pin: string }> {
   const fila = await porCodigo(base, codigo);
   if (!fila) throw new ErrorPeticion(404, 'no-encontrada', 'Ese socio no existe.');
+
+  // UNA FICHA SIN RECLAMAR NO TIENE PIN QUE REINICIAR, y ponerle uno desde aquí
+  // la metería en el programa sin que nadie haya aceptado los términos. El
+  // consentimiento lo da la persona, no la vendedora en su nombre.
+  //
+  // El mensaje trae el código de la ficha a propósito: es el dato que a esa
+  // persona le falta para reclamarla desde el QR si perdió su comprobante, y
+  // dárselo con ella delante es la misma comprobación que hace el papel.
+  if (!fila.pin_hash) {
+    throw new ErrorPeticion(
+      409,
+      'invalida',
+      'Esa ficha todavía no está en el programa: no tiene PIN que reiniciar. ' +
+        'Que escanee el QR y la reclame; el código que le van a pedir es este.',
+      fila.codigo,
+    );
+  }
 
   const pin = pinTemporal();
   const guardado = await guardarPin(pin, env);

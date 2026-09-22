@@ -22,6 +22,7 @@
  */
 
 import { api, comoDolares, comoFecha, comoPuntos, cuantoLeQueda } from './api.js';
+import { selectorDeCumple } from '../hub/cumple.js';
 
 // ---------------------------------------------------------------------------
 // Piezas
@@ -189,6 +190,14 @@ export function registro({ padrino, ir, entrado }) {
   const boton = el('button', { clase: 'boton', type: 'submit', texto: 'Crear mi cuenta' });
   boton.dataset.texto = 'Crear mi cuenta';
 
+  // Dos listas y no un campo de texto. El porqué está en `hub/cumple.js`: sin
+  // año no hay `<input type="date">` que valga, y `15-03` y `03-15` se
+  // confunden según quién los escriba.
+  const cumple = selectorDeCumple({
+    etiqueta: 'Tu cumpleaños (opcional)',
+    nota: 'Te regalamos puntos ese día. No pedimos el año.',
+  });
+
   const formulario = el('form', { clase: 'tarjeta', novalidate: true }, [
     el('p', { clase: 'antetitulo', texto: 'Toma menos de un minuto' }),
     el('h1', { texto: 'Crea tu cuenta' }),
@@ -222,14 +231,32 @@ export function registro({ padrino, ir, entrado }) {
       required: true,
       nota: 'Que no sea 123456 ni parte de tu celular.',
     }),
+    // El código del comprobante. Solo hace falta para RECLAMAR una ficha que ya
+    // tiene puntos —quien compró antes de entrar al programa— y por eso va con
+    // su explicación al lado en vez de esconderse: quien viene con el papel en
+    // la mano tiene que entender en un vistazo que ese campo es para él.
     campo({
-      id: 'cumple',
-      etiqueta: 'Tu cumpleaños (opcional)',
+      id: 'codigo',
+      etiqueta: 'Código de tu comprobante (si ya compraste aquí)',
       tipo: 'text',
-      inputmode: 'numeric',
-      placeholder: 'Día y mes: 15-03',
-      nota: 'No pedimos el año.',
+      autocomplete: 'off',
+      autocapitalize: 'characters',
+      spellcheck: 'false',
+      placeholder: 'DCA…',
+      nota: 'Está impreso en tu comprobante. Sirve para reclamar los puntos que ya tienes.',
     }),
+    campo({
+      id: 'correo',
+      etiqueta: 'Tu correo (opcional)',
+      tipo: 'email',
+      inputmode: 'email',
+      autocomplete: 'email',
+      autocapitalize: 'off',
+      spellcheck: 'false',
+      placeholder: 'tucorreo@ejemplo.com',
+      nota: 'Por si hay que avisarte de algo del programa. No lo usamos para publicidad.',
+    }),
+    cumple.nodo,
     el('label', { clase: 'casilla', for: 'acepta' }, [
       el('input', { id: 'acepta', name: 'acepta', type: 'checkbox' }),
       el('span', {}, [
@@ -259,7 +286,9 @@ export function registro({ padrino, ir, entrado }) {
       // El campo se pide como «15-03» porque así se dice una fecha en Panamá,
       // y el servidor la quiere como «MM-DD». Se da la vuelta aquí en vez de
       // pedirle al socio que la escriba al revés.
-      cumple: alRevesElCumple(formulario.cumple.value),
+      correo: formulario.correo.value,
+      codigo: formulario.codigo.value,
+      cumple: cumple.valor(),
       referido: padrino?.codigo,
       acepta: true,
     });
@@ -267,15 +296,6 @@ export function registro({ padrino, ir, entrado }) {
   });
 
   return formulario;
-}
-
-/** `15-03` → `03-15`. Vacío si no tiene esa forma. */
-export function alRevesElCumple(valor) {
-  const partes = /^(\d{1,2})[-/](\d{1,2})$/.exec((valor ?? '').trim());
-  if (!partes) return '';
-  const dia = partes[1].padStart(2, '0');
-  const mes = partes[2].padStart(2, '0');
-  return `${mes}-${dia}`;
 }
 
 // ---------------------------------------------------------------------------

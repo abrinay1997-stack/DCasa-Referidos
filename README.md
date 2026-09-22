@@ -310,8 +310,106 @@ error de impresión. Va sobre blanco, sobre hueso, o dentro de su placa.
       por vendedora, los términos —que leen las reglas reales, así que no pueden
       contradecir al sistema— y el regalo de cumpleaños, que lo acredita el
       Cron y no una pantalla.
+- [x] **Fase 6 — La facturería y la libreta de clientes.** El comprobante con
+      sus artículos y su ITBMS, la ficha entera de cada persona, la papelera en
+      dos tiempos, y reclamar una ficha que ya tiene puntos esperando.
 
 El programa está entero. Lo que queda no es código: es lo de abajo.
+
+## La facturería y la libreta
+
+Hasta la fase 5 el sistema sabía de socios: gente que escaneó un QR. La tienda
+sabe de clientes: gente que compró. Eran las mismas personas en dos sitios que
+no se hablaban.
+
+### Un cliente y un socio son la misma ficha
+
+Hay **una** tabla, `socios`, y estar en el programa es un estado suyo. Con PIN
+es un socio; sin PIN es un cliente que todavía no la reclamó.
+
+La alternativa era una tabla `clientes` aparte, y se descartó por una razón
+concreta: en el momento en que hay dos, alguien tiene que responder «¿este
+cliente es aquel socio?» cada vez que entra una venta. El hub de B&S necesita
+una escalera de cuatro peldaños para eso —NIT, NIT parecido, correo, nombre— y
+aun así pregunta antes de unir, porque parecerse no es serlo. Aquí la llave es
+un celular de ocho dígitos que la persona se sabe de memoria y que ya tenía
+índice único. La pregunta no existe.
+
+### Los puntos corren aunque nadie haya reclamado la ficha
+
+Una venta a alguien que no quiso registrarse acredita sus puntos igual, y le
+esperan. Eso cambia la conversación del mostrador: en vez de «¿quiere
+registrarse en nuestro programa?» —a lo que casi todo el mundo dice que no— la
+vendedora dice «tiene $18.40 esperándolo, escanee aquí».
+
+El panel tiene ese filtro: **Sin reclamar**. Es la mejor lista de llamadas que
+puede tener la tienda, porque es gente que ya compró y que tiene dinero suyo
+sin recoger.
+
+Dos consecuencias que el sistema respeta. Una ficha sin reclamar **no ha
+aceptado nada**: `terminos_version` se queda en 0 y nadie le escribe — los datos
+que dio son los de su factura, y la Ley 81 de 2019 no convierte una venta en un
+permiso para hacer mercadeo. Y una vendedora **no puede meterla al programa por
+ella**: reiniciar el PIN de una ficha sin reclamar rebota, porque el
+consentimiento lo da la persona.
+
+### Reclamar una ficha pide el código del comprobante
+
+Cuando la ficha ya tiene puntos, entrar al programa con ese celular exige
+también el código `DCA…` que va impreso en el comprobante. Sin eso, cualquiera
+que supiera el número de un vecino que compra en D'CASA se quedaría con sus
+puntos.
+
+Si perdió el papel no se queda fuera: pasa por la tienda y una vendedora se lo
+dice con él delante, que es la misma comprobación por otra vía. Y una ficha sin
+puntos no pide nada, porque no hay nada que proteger.
+
+### El comprobante no es una factura fiscal
+
+En Panamá la factura la emite equipo fiscal autorizado o un proveedor habilitado
+por la DGI. Este sistema no es ninguna de las dos cosas y no lo finge: un papel
+que parece una factura y no lo es le crea a D'CASA un problema con la DGI en vez
+de resolvérselo.
+
+Lo que es: el **comprobante de la venta**. Guarda qué se vendió —artículo por
+artículo, con su cantidad y su precio—, a quién, por cuánto y quién la hizo; se
+imprime desde el navegador o se guarda en PDF para mandarlo por WhatsApp; y
+lleva escrito el número de la factura fiscal que sí emitió la caja. Ese número
+es obligatorio y único: es la misma defensa antifraude que ya tenía `compras`
+—una factura, una carga— y el ancla para cuadrar este historial contra la
+contabilidad de verdad.
+
+Los puntos van impresos en él, y no es un adorno: es la única vez que el cliente
+tiene el programa delante sin abrir nada.
+
+### Emitir es una sola operación
+
+Emitir una venta escribe hasta cinco cosas —la ficha si no existía, la venta, la
+compra que la explica, el asiento de puntos y los dos del referido— y todas
+viajan en el mismo `batch`. Una venta sin compra no acredita puntos; unos puntos
+sin venta no se pueden explicar; una ficha a medias deja a un cliente sin
+historial. Ninguno de esos estados puede existir.
+
+### Borrar, en dos tiempos y con dos candados
+
+A la papelera primero —reversible, con constancia de quién— y borrado de verdad
+después, solo desde dentro de la papelera. El servidor lo impone por su cuenta.
+
+El segundo candado: **una ficha con ventas, compras, movimientos o gente traída
+no se borra del todo**. Esas filas son el dinero que entró en la tienda y el
+libro mayor que explica los puntos de todo el mundo; borrarla dejaría compras
+huérfanas y un pasivo que no cuadra con la suma de los saldos. Para esas, la
+papelera **es** el borrado: no sale en ninguna lista y no puede entrar. Lo que
+sí se va sin dejar rastro es la ficha que nunca llegó a nada — la del dedo
+equivocado, la de prueba, la duplicada—, que es justo lo que alguien quiere
+borrar de verdad.
+
+Quién puede borrar del todo lo decide `CORREOS_ADMIN`, en `wrangler.jsonc`.
+**Vacío significa «cualquiera que entre al panel»**, que hoy es correcto porque
+detrás de Access hay una sola persona, y dejará de serlo en cuanto entren las
+vendedoras. La pantalla de clientes lo recuerda mientras siga vacío.
+
+---
 
 ## Lo que falta preguntarle a Marcial
 
@@ -333,7 +431,9 @@ Quedan cuatro cosas, y ninguna bloquea el código:
    los dos está mal, y si es el precio, cada venta pierde $21.
 3. **Qué correos más entran al panel.** Hoy la política `Equipo D'CASA` de Access
    tiene uno solo. Cada vendedora necesita el suyo: el reporte antifraude
-   agrupa por correo, y con un correo compartido no agrupa nada.
+   agrupa por correo, y con un correo compartido no agrupa nada. **Ese mismo
+   día hay que llenar `CORREOS_ADMIN`** en `wrangler.jsonc`: mientras esté
+   vacío, cualquiera que entre al panel puede borrar una ficha para siempre.
 4. **¿El DNS de `dcasapty.com` se puede mover a Cloudflare?** — de esto depende
    la dirección de los QR, y un QR impreso no se cambia. Mientras tanto todo
    vive en `dcasa-socios.abrinay1997.workers.dev`, que lleva dentro el nombre de

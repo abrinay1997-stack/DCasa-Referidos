@@ -160,6 +160,14 @@ async function zonaPrivada(peticion: Request, url: URL, env: Env): Promise<Respo
       correo,
       encendido: queEstaEncendido(),
       admin: esAdmin(correo, env),
+      // Las dos cifras que la pantalla de venta necesita para enseñar el total
+      // y los puntos ANTES de emitir. Viajan desde aquí y no se escriben en el
+      // panel: ninguna cifra vive en el código (regla 1 de este repositorio).
+      reglas: {
+        itbmsPorcentaje: REGLAS.acumulacion.itbmsPorcentaje,
+        puntosPorDolar: REGLAS.acumulacion.puntosPorDolar,
+        compraMinimaCentavos: REGLAS.acumulacion.compraMinimaCentavos,
+      },
       // Mientras la lista esté vacía, cualquiera que entre puede borrar. La
       // pantalla lo avisa; ver `CORREOS_ADMIN` en wrangler.jsonc.
       adminSinLista: !(env.CORREOS_ADMIN ?? '').trim(),
@@ -621,7 +629,10 @@ async function fichaEntera(base: D1Database, codigo: string) {
     bitacoraDe(base, codigo),
     compras.deSocio(base, codigo),
     ventas.deCliente(base, codigo),
-    socios.padrinoDe(base, codigo),
+    // El código de QUIEN LO TRAJO, no el suyo. `padrinoDe` busca por el código
+    // que recibe: pasarle el propio devolvía a la persona como su propio
+    // padrino, y la ficha decía «la trajo» con su mismo nombre.
+    fila.referido_por ? socios.padrinoDe(base, fila.referido_por) : Promise.resolve(null),
     base
       .prepare(
         `SELECT s.codigo, s.nombre, s.apellido, s.creado_en,

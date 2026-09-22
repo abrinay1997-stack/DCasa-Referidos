@@ -43,13 +43,22 @@
     gap: 12px;
     flex-wrap: wrap;
   }
-  header a.marca {
-    font-family: Anton, Inter, sans-serif;
+  /* El logo, no el nombre escrito. El archivo ya trae su propia placa blanca
+     —el manual de marca dice que «el logo ES la placa»— así que va directo
+     sobre el azul sin ningún marco nuestro detrás.
+
+     Mucho más pequeño que en la app del socio: allí es una portada y aquí es
+     una barra de trabajo que se ve doscientas veces al día. */
+  header a.marca { display: flex; align-items: center; text-decoration: none; }
+  header a.marca img { display: block; width: 104px; height: auto; }
+  header a.marca .rotulo {
+    font-family: Oswald, Inter, sans-serif;
     text-transform: uppercase;
-    font-size: 18px;
-    letter-spacing: 0.02em;
+    font-size: 12px;
+    letter-spacing: 0.14em;
     color: var(--blanco);
-    text-decoration: none;
+    margin-left: 12px;
+    opacity: 0.85;
   }
   #quien { font-family: Oswald, Inter, sans-serif; font-size: 13px; opacity: 0.9; }
 
@@ -126,6 +135,34 @@
   }
   .campo input:focus { outline: 3px solid var(--azul); outline-offset: 1px; border-color: var(--azul); }
   .campo .nota { display: block; margin-top: 5px; font-size: 13px; }
+
+  /* El selector de cumpleaños: dos listas, un toque cada una.
+     Ver `hub/cumple.js` para el porqué de que no sea un calendario. */
+  .cumple-fila { display: flex; gap: 10px; }
+  .cumple-parte {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 17px;
+    /* 48px de alto mínimo: es un objetivo que se toca con el pulgar, de pie. */
+    padding: 13px 12px;
+    border: 1px solid var(--borde);
+    border-radius: 10px;
+    background: var(--blanco);
+    color: var(--tinta);
+    /* La flecha nativa de Android ocupa y desalinea; se pinta una propia. */
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--azul) 50%),
+                      linear-gradient(135deg, var(--azul) 50%, transparent 50%);
+    background-position: right 18px center, right 13px center;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 32px;
+  }
+  .cumple-parte:focus { outline: 3px solid var(--azul); outline-offset: 1px; border-color: var(--azul); }
+  /* La fecha releída en palabras. Vacía no ocupa: sin esto el formulario da un
+     salto de un renglón la primera vez que se elige un día. */
+  .cumple-leido:not(:empty) { display: block; margin-top: 6px; font-weight: 500; color: var(--azul); }
 
   /* Resultados de la búsqueda */
   .resultados { margin-top: 4px; }
@@ -263,12 +300,181 @@
   .cuando { font-size: 13px; color: var(--apagado); }
   .motivo { font-size: 14px; background: var(--hueso); border-radius: 8px; padding: 8px 11px; margin: 8px 0 0; }
   .nota-grande h2 { margin-bottom: 8px; }
+
+  /* ---------------------------------------------------------------------
+     LA FACTURERÍA
+     --------------------------------------------------------------------- */
+
+  /* Un renglón de la venta: el artículo arriba, ancho entero, y debajo la
+     cantidad y el precio. En 390 px los tres en fila dejan la descripción en
+     ocho caracteres, que es justo el dato que hay que poder leer. */
+  .renglon-venta { border-top: 1px solid var(--borde); padding: 12px 0 4px; }
+  .renglon-venta:first-of-type { border-top: 0; }
+  .renglon-venta > input {
+    width: 100%; font: inherit; font-size: 16px; padding: 11px 12px;
+    border: 1px solid var(--borde); border-radius: 10px;
+    background: var(--blanco); color: var(--tinta);
+  }
+  .renglon-cifras { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .renglon-cifras input {
+    font: inherit; font-size: 16px; padding: 10px 10px; min-width: 0;
+    border: 1px solid var(--borde); border-radius: 10px;
+    background: var(--blanco); color: var(--tinta);
+    font-variant-numeric: tabular-nums;
+  }
+  .renglon-cifras input:nth-of-type(1) { width: 62px; text-align: center; }
+  .renglon-cifras input:nth-of-type(2) { flex: 1; }
+  .renglon-cifras .x { color: var(--apagado); font-size: 15px; }
+  .renglon-venta input:focus, .renglon-cifras input:focus {
+    outline: 3px solid var(--azul); outline-offset: 1px; border-color: var(--azul);
+  }
+  /* Separado del resto por su margen: es lo único del renglón que borra algo. */
+  .quitar {
+    flex: none; width: 40px; height: 40px; border-radius: 10px; margin-left: 4px;
+    border: 1px solid var(--borde); background: var(--hueso);
+    color: var(--apagado); font-size: 15px; cursor: pointer;
+  }
+
+  /* Los totales. En columnas alineadas por la derecha y con cifras de ancho
+     fijo: es lo único de esta pantalla que se lee comparando renglones. */
+  /* La misma fila en los dos sitios que la usan: la pantalla de venta y el
+     comprobante. Estaba escrita solo para `.totales`, y en el papel salía el
+     importe pegado a su etiqueta. */
+  .total-fila {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 12px; padding: 7px 0;
+  }
+  .total-que { color: var(--apagado); font-size: 15px; }
+  .total-cuanto { font-variant-numeric: tabular-nums; font-size: 17px; }
+  .total-fila.grande { border-top: 1px solid var(--borde); margin-top: 6px; padding-top: 12px; }
+  .total-fila.grande .total-que { color: var(--tinta); font-family: Oswald, Inter, sans-serif; text-transform: uppercase; letter-spacing: 0.06em; font-size: 14px; }
+  .total-fila.grande .total-cuanto { font-family: Anton, Inter, sans-serif; font-size: 30px; color: var(--azul); }
+  .total-entrada { display: flex; align-items: center; gap: 6px; }
+  .total-entrada span { color: var(--apagado); }
+  .total-entrada input {
+    width: 104px; font: inherit; font-size: 16px; padding: 8px 10px; text-align: right;
+    border: 1px solid var(--borde); border-radius: 10px; background: var(--blanco);
+    color: var(--tinta); font-variant-numeric: tabular-nums;
+  }
+  .puntos-anticipo {
+    margin: 10px 0 0; padding: 10px 12px; border-radius: 10px;
+    background: var(--amarillo); color: var(--azul);
+    font-family: Oswald, Inter, sans-serif; font-size: 15px;
+  }
+
+  .elegido { padding: 12px 0; }
+  .elegido .nombre { display: block; font-size: 18px; }
+  .elegido .meta { display: block; font-size: 14px; color: var(--apagado); font-variant-numeric: tabular-nums; }
+
+  /* ---------------------------------------------------------------------
+     EL COMPROBANTE
+     --------------------------------------------------------------------- */
+
+  .papel {
+    display: block; background: var(--blanco); border: 1px solid var(--borde);
+    border-radius: var(--radio); padding: 22px 18px; margin-bottom: 14px;
+  }
+  .papel-cabecero { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; }
+  .papel-logo { width: 118px; height: auto; display: block; }
+  .papel-quien { text-align: right; }
+  .papel-titulo {
+    display: block; font-family: Oswald, Inter, sans-serif; text-transform: uppercase;
+    letter-spacing: 0.08em; font-size: 12px; color: var(--apagado);
+  }
+  .papel-numero { display: block; font-family: Anton, Inter, sans-serif; font-size: 22px; color: var(--azul); }
+  .papel-anulada {
+    margin: 14px 0 0; padding: 10px 12px; border: 2px solid var(--azul); border-radius: 10px;
+    color: var(--azul); font-family: Oswald, Inter, sans-serif; text-transform: uppercase;
+    letter-spacing: 0.06em; font-size: 14px;
+  }
+  .papel-datos { display: flex; flex-wrap: wrap; gap: 16px; margin: 18px 0 0; }
+  .papel-dato { display: flex; flex-direction: column; }
+  .papel-etiqueta {
+    font-family: Oswald, Inter, sans-serif; text-transform: uppercase;
+    letter-spacing: 0.08em; font-size: 11px; color: var(--apagado);
+  }
+  .papel-cliente { margin: 18px 0 0; padding: 14px; background: var(--hueso); border-radius: 10px; }
+  .papel-nombre { display: block; font-size: 18px; }
+  .papel-meta { display: block; font-size: 14px; color: var(--apagado); }
+  .papel-tabla { width: 100%; border-collapse: collapse; margin: 18px 0 0; font-size: 15px; }
+  .papel-tabla th {
+    text-align: left; font-family: Oswald, Inter, sans-serif; text-transform: uppercase;
+    letter-spacing: 0.06em; font-size: 11px; color: var(--apagado);
+    border-bottom: 1px solid var(--borde); padding: 0 0 7px;
+  }
+  .papel-tabla td { padding: 9px 0; border-bottom: 1px solid var(--borde); vertical-align: top; }
+  .papel-tabla .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: 10px; }
+  .papel-totales { margin: 14px 0 0; }
+  .papel-nota { margin: 14px 0 0; font-size: 14px; background: var(--hueso); border-radius: 8px; padding: 9px 12px; }
+
+  /* Los puntos, en el papel. En amarillo porque es lo único de este
+     documento que no es una cifra que el cliente ya sabía. */
+  .papel-puntos { margin: 18px 0 0; padding: 14px; background: var(--amarillo); border-radius: 10px; color: var(--azul); }
+  .papel-puntos-linea { display: block; font-family: Anton, Inter, sans-serif; font-size: 19px; }
+  .papel-puntos-saldo { display: block; font-size: 15px; margin-top: 3px; }
+  .papel-puntos-pie { display: block; font-size: 13px; margin-top: 6px; opacity: 0.85; }
+
+  .papel-legal { margin: 18px 0 0; font-size: 12px; color: var(--apagado); line-height: 1.5; }
+  .papel-pie { margin: 8px 0 0; font-size: 12px; color: var(--apagado); }
+
+  /* Al imprimir se va todo menos el papel: el cabecero azul, los botones y el
+     fondo. Sin esto, «Guardar como PDF» produce una captura de la aplicación
+     en vez de un comprobante. */
+  @media print {
+    header, .sin-imprimir, .boton { display: none !important; }
+    body { background: #FFFFFF; font-size: 13px; }
+    main { max-width: none; padding: 0; }
+    .papel { border: 0; border-radius: 0; padding: 0; }
+    .papel-cliente, .papel-puntos, .papel-nota { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  /* ---------------------------------------------------------------------
+     LA LIBRETA Y LA FICHA
+     --------------------------------------------------------------------- */
+
+  .pestanas { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .pestana {
+    font: inherit; font-size: 14px; padding: 8px 13px; border-radius: 999px;
+    border: 1px solid var(--borde); background: var(--blanco); color: var(--apagado); cursor: pointer;
+  }
+  .pestana.puesta { background: var(--azul); border-color: var(--azul); color: var(--blanco); }
+
+  .paginas { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+  .paginas .nota { text-align: center; font-variant-numeric: tabular-nums; }
+
+  .datos { margin: 14px 0 0; }
+  .dato { display: flex; justify-content: space-between; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--borde); }
+  .dato:last-child { border-bottom: 0; }
+  .dato-que { color: var(--apagado); font-size: 14px; flex: none; }
+  .dato-cuanto { text-align: right; word-break: break-word; }
+  .notas-ficha { margin: 12px 0 0; font-size: 15px; background: var(--hueso); border-radius: 8px; padding: 10px 12px; }
+
+  .rejilla.chica { grid-template-columns: 1fr; gap: 8px; }
+  .resultado.sin-pulsar { cursor: default; }
+  .marca.suave { background: var(--hueso); color: var(--azul); }
+
+  .movimiento { display: flex; gap: 10px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--borde); }
+  .movimiento:last-child { border-bottom: 0; }
+  .mov-cuando { font-size: 13px; color: var(--apagado); flex: none; width: 92px; }
+  .mov-que { flex: 1; font-size: 15px; min-width: 0; }
+  .mov-cuanto { font-family: Anton, Inter, sans-serif; font-size: 17px; font-variant-numeric: tabular-nums; flex: none; }
+  .mov-cuanto.mas { color: var(--azul); }
+  .mov-cuanto.menos { color: var(--apagado); }
+
+  /* Lo que no se deshace lleva borde, no color de alarma: el rojo no existe en
+     esta marca (ver el comentario del aviso en index.html). */
+  .tarjeta.peligro { border: 2px solid var(--azul); }
+  .boton.peligro { background: var(--blanco); color: var(--azul); border: 2px solid var(--azul); }
+  .boton.chico { padding: 10px 14px; font-size: 14px; }
 </style>
 </head>
 <body>
 
 <header>
-  <a class="marca" href="#/">D'CASA · Panel de socios</a>
+  <a class="marca" href="#/">
+    <img src="/hub/assets/logo-dcasa.png" alt="D'CASA Panamá" width="1783" height="809">
+    <span class="rotulo">Panel</span>
+  </a>
   <span id="quien">comprobando…</span>
 </header>
 

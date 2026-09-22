@@ -90,7 +90,10 @@ await writeFile(join(destino, '_headers'), `${cabeceras.join('\n')}\n`, 'utf8');
 // El presupuesto, medido sobre lo que de verdad se va a publicar.
 console.log('· Midiendo la zona del socio…');
 let pesoSocio = 0;
-for (const carpeta of ['', 'socio']) {
+// `hub` cuenta aunque no sea del socio: de ahí sale el selector de cumpleaños,
+// que el socio descarga. Un presupuesto que no mide lo que de verdad se baja
+// no es un presupuesto, es una forma de esconder peso en otra carpeta.
+for (const carpeta of ['', 'socio', 'hub']) {
   // El panel no cuenta: lo usan seis personas del equipo desde la tienda, no
   // los clientes, y sus pantallas van a ser mucho más pesadas por necesidad.
   const dir = carpeta ? join(destino, carpeta) : destino;

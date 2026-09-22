@@ -55,6 +55,20 @@ export const api = {
   calcular: (socio, montoCentavos) => post('compras/calcular', { socio, montoCentavos }),
   registrarCompra: (datos) => post('compras', datos),
   anularCompra: (id, motivo) => post(`compras/${encodeURIComponent(id)}/anular`, { motivo }),
+  // --- La facturería ---
+  emitirVenta: (datos) => post('ventas', datos),
+  ventas: (parametros = '') => pedir(`ventas${parametros}`),
+  venta: (numero) => pedir(`ventas/${encodeURIComponent(numero)}`),
+  anularVenta: (numero, motivo) => post(`ventas/${encodeURIComponent(numero)}/anular`, { motivo }),
+
+  // --- La libreta ---
+  clientes: (parametros = '') => pedir(`clientes${parametros}`),
+  cliente: (codigo) => pedir(`clientes/${encodeURIComponent(codigo)}`),
+  corregirCliente: (codigo, datos) => post(`clientes/${encodeURIComponent(codigo)}`, datos),
+  retirarCliente: (codigo) => post(`clientes/${encodeURIComponent(codigo)}/retirar`),
+  restaurarCliente: (codigo) => post(`clientes/${encodeURIComponent(codigo)}/restaurar`),
+  borrarCliente: (codigo) => post(`clientes/${encodeURIComponent(codigo)}/borrar`),
+
   canjes: (estado = 'solicitado') => pedir(`canjes?estado=${estado}`),
   verCanje: (codigo) => pedir(`canjes/${encodeURIComponent(codigo)}`),
   entregarCanje: (codigo) => post(`canjes/${encodeURIComponent(codigo)}/entregar`),
