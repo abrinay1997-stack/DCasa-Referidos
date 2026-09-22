@@ -1,0 +1,97 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dcasa-socios",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-01",
+
+  // NO HAY `account_id` AQUÍ, Y ES LA MISMA DECISIÓN QUE EN hub-panaclaw:
+  //
+  // Cuando el token ve una sola cuenta, wrangler la usa y no pregunta. Cuando
+  // ve varias —y este dueño tiene al menos dos, porque el hub de B&S vive en
+  // otra— hay que decirle cuál, y se dice con la variable de entorno
+  // `CLOUDFLARE_ACCOUNT_ID`: en la terminal al desplegar, o como secreto del
+  // repositorio para el flujo que aplica las migraciones.
+  //
+  // Va por variable y no escrito aquí porque es un dato de QUIÉN despliega, no
+  // del proyecto, y escribirlo obliga a cambiarlo el día que esto se mueva a la
+  // cuenta de Cloudflare del propio D'CASA — que es a dónde va a acabar yendo.
+
+  // Encendido mientras no haya un dominio propio conectado.
+  //
+  // OJO: aquí esto NO es solo comodidad, como en los otros dos hubs. La zona
+  // del socio es PÚBLICA a propósito, así que esta dirección es alcanzable por
+  // cualquiera desde el primer despliegue. Lo que protege al panel no es la
+  // oscuridad de la dirección: es la aplicación de Access sobre la ruta
+  // `panel`, más la comprobación de firma que hace el propio Worker.
+  //
+  // Lo que sí depende de esto: los QR. Ver README → «El dominio».
+  "workers_dev": true,
+
+  "assets": {
+    "directory": "./publico",
+    "binding": "ASSETS",
+
+    // Solo la zona del equipo pasa por el Worker antes de servirse.
+    //
+    // En hub-panaclaw esto está en `true` para TODO, y allí es lo correcto
+    // porque allí todo es privado. Aquí no: la app del socio son archivos
+    // públicos que pide gente con datos móviles, y hacer que cada uno cueste
+    // una invocación del Worker no protege nada y se paga en cada visita.
+    //
+    // Pero para `/panel/*` es obligatorio. Sin esto, Cloudflare entregaría
+    // `/panel/index.html` desde el borde SIN ejecutar el Worker, y el guardia
+    // que se niega a servir el panel mientras falte Access (ver
+    // `worker/index.ts`) no llegaría a correr: la API rechazaría, pero la
+    // pantalla del panel quedaría a la vista de cualquiera que diera con la
+    // dirección, desde el despliegue hasta que alguien se acordara de la
+    // puerta. Ese hueco es justo el que no se cierra nunca.
+    //
+    // NO LO QUITES. Si tu versión de wrangler no acepta el arreglo de
+    // patrones, ponlo en `true` y asume la invocación de más; lo que no se
+    // hace es dejarlo apagado.
+    "run_worker_first": ["/panel/*"]
+  },
+
+  "d1_databases": [
+    {
+      "binding": "BASE",
+      "database_name": "dcasa-socios-db",
+      // Creada el 2026-09-22 en la región ENAM (la más cercana a Panamá de las
+      // que ofrece D1).
+      "database_id": "6d60640b-5f98-4d82-87fc-3bb4ec69d36a",
+      "migrations_dir": "migraciones"
+    }
+  ],
+
+  "vars": {
+    // Los dos datos de la aplicación en Cloudflare Access, tomados de Zero
+    // Trust → Access → Applications, sobre este Worker y con la RUTA `panel`.
+    // `ACCESO_DOMINIO` es el dominio del equipo (`algo.cloudflareaccess.com`)
+    // y `ACCESO_AUD`, la etiqueta «Application Audience (AUD) Tag».
+    //
+    // Hasta que estén puestos, `/panel/` responde 503 diciendo qué falta. La
+    // app del socio funciona igual: la puerta que falta no es la suya.
+    //
+    // OJO CON CUÁL DE LOS DOS IDENTIFICADORES SE PEGA AQUÍ. La etiqueta AUD son
+    // 64 caracteres y sale en la aplicación de Access, pestaña Overview. El
+    // identificador que enseña la barra lateral del panel de Workers tiene 32 y
+    // es el de la CUENTA. Se parecen, están a un clic el uno del otro, y con el
+    // equivocado puesto el panel queda EN PIE contestando «la sesión caducó» a
+    // cada llamada, sin sesión que caducar: el token está bien y es la
+    // comparación la que no puede cuadrar. En PanaClaw eso costó una tarde.
+    // `node herramientas/verificar.mjs` lo para antes de construir.
+    "ACCESO_DOMINIO": "PENDIENTE",
+    "ACCESO_AUD": "PENDIENTE"
+  },
+
+  // SECRETOS, que NO van aquí y se ponen con `wrangler secret put`:
+  //
+  //   SECRETO_SESION   firma la cookie de sesión del socio (32 bytes al azar)
+  //   PIMIENTA_PIN     se concatena al PIN antes de derivar el hash
+  //
+  // Ver README → «Los dos secretos».
+
+  "observability": {
+    "enabled": true
+  }
+}

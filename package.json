@@ -1,0 +1,22 @@
+{
+  "name": "dcasa-socios",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "El programa de socios, puntos y referidos de D'CASA Panamá: la app del socio, el panel del equipo y el servidor que los atiende.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "node scripts/construir.mjs",
+    "test": "node --test \"pruebas/*.test.ts\"",
+    "tipos": "tsc --noEmit -p tsconfig.worker.json",
+    "verificar": "node herramientas/verificar.mjs",
+    "desplegar": "npm run build && wrangler deploy",
+    "migrar": "wrangler d1 migrations apply dcasa-socios-db --remote",
+    "migrar:local": "wrangler d1 migrations apply dcasa-socios-db --local"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260811.1",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.42.0"
+  }
+}

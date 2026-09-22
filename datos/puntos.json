@@ -1,0 +1,59 @@
+{
+  "$comentario": "FUENTE ÚNICA DE LA ECONOMÍA DEL PROGRAMA. Ninguna cifra de puntos vive en el código: si el código necesita un valor que no está aquí, ese valor no existe todavía. Los que están en null o 'PENDIENTE' los define Marcial Meléndez; mientras lo estén, su pantalla no se muestra y su endpoint responde 503 diciendo qué falta. Es la misma disciplina de datos/precios.json en PanaClaw-WorkSpace, y existe por lo mismo: una cifra inventada en un programa de puntos es dinero real regalado o negado.",
+  "version": 1,
+  "moneda": "USD",
+
+  "acumulacion": {
+    "puntosPorDolar": null,
+
+    "baseDeCalculo": "PENDIENTE",
+    "$baseDeCalculo": "'total' o 'subtotal'. Decide si los puntos se calculan sobre lo que pagó el cliente o sobre el monto sin ITBMS. El manual de marca de D'CASA (§10) marca como pendiente si los precios publicados llevan ITBMS incluido, y de esa respuesta depende ésta. Sobre $1,000 de venta la diferencia es del 6.5 %: a mil compras, un premio entero regalado o negado.",
+
+    "itbmsPorcentaje": 7,
+
+    "redondeo": "abajo",
+    "$redondeo": "Siempre abajo, y no se cambia. Redondear arriba regala una fracción de punto en cada compra, y a mil compras eso es dinero. Abajo es predecible y el socio nunca ve menos de lo que calculó en la cabeza.",
+
+    "compraMinimaCentavos": null,
+
+    "puntosMaximosPorCompra": null,
+    "$puntosMaximosPorCompra": "Tope por compra. Existe para que un error de tecleo —$4,999.00 escrito como $499900.00— no acredite una fortuna antes de que nadie lo vea."
+  },
+
+  "bienvenida": {
+    "puntos": null,
+    "$puntos": "Lo que se le regala a alguien por darse de alta. Puede ser 0; null significa que todavía no se ha decidido."
+  },
+
+  "referido": {
+    "niveles": 1,
+    "$niveles": "UNO. Juan refiere a Ana y gana por las compras de Ana; si Ana refiere a Luis, Juan no gana nada por Luis. El esquema está hecho para poder añadir un segundo nivel sin migrar datos, pero hoy es uno.",
+
+    "vestaCon": "primera-compra-verificada",
+    "$vestaCon": "NO SE TOCA. Los puntos del padrino se acreditan cuando su referido hace su primera compra real registrada por una vendedora, jamás al registrarse. Pagar por el alta convierte el programa en una fábrica de cuentas falsas.",
+
+    "puntosAlPadrino": null,
+    "puntosAlAhijado": null,
+
+    "topeDeAhijadosPorPadrino": null,
+    "topeDePuntosPorPadrinoAlMes": null,
+    "$topes": "Los dos topes existen para acotar el daño de un abuso que nadie ha detectado todavía. Sin ellos, el fraude no tiene techo. Un tope alcanzado nunca hace fallar una venta: la compra se registra igual y el panel deja constancia de por qué no hubo referido."
+  },
+
+  "canje": {
+    "vigenciaDelCodigoHoras": 72,
+    "$vigenciaDelCodigoHoras": "Cuánto dura el código antes de vencer y devolver los puntos. 72 horas da un fin de semana completo para pasar por la tienda.",
+
+    "saldoMinimoParaCanjear": null
+  },
+
+  "vencimiento": {
+    "meses": null,
+    "$meses": "null = los puntos no vencen. Si algún día se activa, hay que avisar al socio 30 días antes y declararlo en los términos. Vencer puntos en silencio es la forma más rápida de que el programa se vuelva en contra de la marca."
+  },
+
+  "cumpleanos": {
+    "puntos": null,
+    "$puntos": "null = no hay regalo de cumpleaños. No es un error."
+  }
+}

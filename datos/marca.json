@@ -1,0 +1,271 @@
+{
+  "$comentario": "FUENTE ÚNICA DE TOKENS VISUALES DE D'CASA. Todo hex que aparezca en el código —worker, panel, app del socio, CSS— tiene que estar aquí, y `herramientas/verificar.mjs` lo comprueba antes de construir. Espejo de Dcasa/01_ADN_y_Memoria/05_receta.json del repositorio juanarrietabusiness-pixel/Agencia_Workspace.",
+  "version": "1.0.0",
+  "verificadoContra": {
+    "repositorio": "juanarrietabusiness-pixel/Agencia_Workspace",
+    "fecha": "2026-09-22",
+    "archivos": [
+      "Dcasa/01_ADN_y_Memoria/01_brand_guidelines.md",
+      "Dcasa/01_ADN_y_Memoria/05_receta.json",
+      "smartlinks/clients/dcasa.yml"
+    ]
+  },
+  "identidad": {
+    "nombre": "D'CASA Panamá",
+    "escritura": "D'CASA en caja alta con apóstrofo recto. Nunca «Dcasa», «D'Casa» ni «DCASA» en prosa.",
+    "tagline": "Tu casa, bien amueblada.",
+    "descripcionCorta": "Muebles, camas y colchones para tu casa en La Chorrera. Desde $49.99.",
+    "mercado": "Panamá",
+    "idioma": "es-PA",
+    "sitio": "https://dcasapty.com",
+    "whatsapp": "+507 6026-1919",
+    "whatsappEnlace": "https://wa.me/50760261919",
+    "correo": "info@dcasapty.com",
+    "instagram": "https://instagram.com/dcasapty",
+    "ubicacion": "La Chorrera, Panamá Oeste — frente al parque Libertadores",
+    "enlaces": "https://juancitoads.com/dcasa"
+  },
+  "color": {
+    "$regla": "El amarillo JAMÁS toca el blanco ni el hueso: ratio 1.47:1, es invisible. El botón principal es fondo amarillo con texto azul (5.9:1, AA). Proporción de pantalla: 60 % claro · 30 % azul · 10 % amarillo.",
+    "tokens": {
+      "azul": {
+        "hex": "#1340B1",
+        "uso": "Color madre. Hero, cabeceras, titulares sobre claro, iconografía, y el texto que va encima del amarillo.",
+        "rgb": [
+          19,
+          64,
+          177
+        ]
+      },
+      "amarillo": {
+        "hex": "#FED00F",
+        "uso": "Acento y acción. Botón principal, placa de puntos, banda inferior, badges. Nunca como color de texto.",
+        "rgb": [
+          254,
+          208,
+          15
+        ]
+      },
+      "blanco": {
+        "hex": "#FFFFFF",
+        "uso": "Aire, superficie de tarjetas, y texto sobre azul.",
+        "rgb": [
+          255,
+          255,
+          255
+        ]
+      },
+      "hueso": {
+        "hex": "#E0DDD1",
+        "uso": "Fondo base de la marca, tal como lo confirmó el cliente.",
+        "rgb": [
+          224,
+          221,
+          209
+        ]
+      },
+      "hueso-pantalla": {
+        "hex": "#EDEAE0",
+        "uso": "El hueso aclarado para pantalla, para que el blanco de las tarjetas respire encima. Es el mismo valor que ya usa el SmartLink de D'CASA.",
+        "rgb": [
+          237,
+          234,
+          224
+        ]
+      },
+      "grafito": {
+        "hex": "#3A3A3A",
+        "uso": "Texto secundario, listas y notas sobre fondo claro.",
+        "rgb": [
+          58,
+          58,
+          58
+        ]
+      },
+      "tinta": {
+        "hex": "#141C2E",
+        "uso": "Texto de cuerpo sobre fondo claro. Es el mismo del SmartLink: azul muy oscuro, no negro puro.",
+        "rgb": [
+          20,
+          28,
+          46
+        ]
+      },
+      "apagado": {
+        "hex": "#6E7686",
+        "uso": "Texto terciario, notas al pie, marcas de agua de formulario.",
+        "rgb": [
+          110,
+          118,
+          134
+        ]
+      },
+      "borde": {
+        "hex": "#E1DDD1",
+        "uso": "Bordes de tarjeta y separadores sobre fondo claro.",
+        "rgb": [
+          225,
+          221,
+          209
+        ]
+      }
+    },
+    "paresDeTexto": [
+      {
+        "texto": "#FFFFFF",
+        "fondo": "#1340B1",
+        "ratio": 8.76,
+        "veredicto": "AAA"
+      },
+      {
+        "texto": "#1340B1",
+        "fondo": "#FFFFFF",
+        "ratio": 8.76,
+        "veredicto": "AAA"
+      },
+      {
+        "texto": "#1340B1",
+        "fondo": "#FED00F",
+        "ratio": 5.94,
+        "veredicto": "AA"
+      },
+      {
+        "texto": "#FED00F",
+        "fondo": "#1340B1",
+        "ratio": 5.94,
+        "veredicto": "AA"
+      },
+      {
+        "texto": "#141C2E",
+        "fondo": "#EDEAE0",
+        "ratio": 14.12,
+        "veredicto": "AAA"
+      },
+      {
+        "texto": "#141C2E",
+        "fondo": "#FFFFFF",
+        "ratio": 17,
+        "veredicto": "AAA"
+      },
+      {
+        "texto": "#3A3A3A",
+        "fondo": "#FFFFFF",
+        "ratio": 11.37,
+        "veredicto": "AAA"
+      },
+      {
+        "texto": "#6E7686",
+        "fondo": "#FFFFFF",
+        "ratio": 4.57,
+        "veredicto": "AA"
+      }
+    ],
+    "combinacionesProhibidas": [
+      {
+        "texto": "#FED00F",
+        "fondo": "#FFFFFF",
+        "ratio": 1.47,
+        "porque": "Invisible. Ni texto, ni ícono, ni línea, ni borde. Es la trampa número uno de esta marca en una interfaz, porque el impulso natural es hacer el botón principal amarillo con letras blancas."
+      },
+      {
+        "texto": "#FED00F",
+        "fondo": "#E0DDD1",
+        "ratio": 1.08,
+        "porque": "Misma razón."
+      },
+      {
+        "texto": "#FED00F",
+        "fondo": "#EDEAE0",
+        "ratio": 1.22,
+        "porque": "Misma razón."
+      }
+    ],
+    "prohibidos": [
+      "terracota, bronce, cobre",
+      "verde salvia, beige premium, tonos tierra apagados",
+      "gris frío, azul grisáceo nórdico",
+      "dorado, mármol",
+      "rojo de oferta"
+    ]
+  },
+  "logo": {
+    "archivo": "hub/assets/logo-dcasa.png",
+    "origen": "juanarrietabusiness-pixel/Agencia_Workspace → Dcasa/01_ADN_y_Memoria/Assets_Visuales_Base/logo-dcasa.png",
+    "ancho": 1783,
+    "alto": 809,
+    "proporcion": 2.204,
+    "fondo": "transparente",
+    "$noEsVectorial": "El .svg que acompaña al .png NO es vectorial: es un PNG incrustado en base64 dentro de un envoltorio SVG. Cero <path>, cero texto editable. No se puede recolorear ni escalar sin límite. Para componer se usa el .png.",
+    "$divergencia": "Los hex MEDIDOS dentro del archivo del logo (azul #1648C0, amarillo #FFD000) NO son los que el cliente confirmó en el formulario de onboarding (#1340B1 / #FED00F). Manda el formulario para todo lo que se compone en pantalla. CONSECUENCIA PRÁCTICA: el logo nunca se pone directamente sobre una masa plana de #1340B1 — los dos azules casi iguales pegados se leen como un error de impresión. Va sobre blanco, sobre hueso, o dentro de su placa con espacio de resguardo."
+  },
+  "tipografia": {
+    "url": "https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500&family=Inter:wght@400;500&display=swap",
+    "familias": [
+      {
+        "nombre": "Anton",
+        "pesos": "400",
+        "rol": "Titulares y el número de puntos. SOLO en caja alta. Frases de 2 a 5 palabras."
+      },
+      {
+        "nombre": "Oswald",
+        "pesos": "400;500",
+        "rol": "Antetítulos y subtítulos. Nunca caja alta en párrafos."
+      },
+      {
+        "nombre": "Inter",
+        "pesos": "400;500",
+        "rol": "Cuerpo, listas, notas, formularios y tablas."
+      }
+    ],
+    "prohibidas": [
+      "Bebas Neue",
+      "Impact",
+      "Archivo Narrow",
+      "Montserrat",
+      "Poppins",
+      "Roboto",
+      "Open Sans",
+      "Lato",
+      "Helvetica",
+      "Arial"
+    ]
+  },
+  "forma": {
+    "radio": 14,
+    "radioPlaca": 24,
+    "$regla": "Cero degradados, cero sombras dramáticas, cero bordes de neón. Iconografía de línea de 2-3 px, esquinas redondeadas, monocolor."
+  },
+  "voz": {
+    "arquetipo": "El amigo cercano, personalidad ESFJ. El pana que sabe de casas, dice la verdad, resuelve, y no te hace sentir bruto por preguntar el precio.",
+    "trato": "Tuteo siempre: tú, tu casa, tu espacio.",
+    "rasgos": [
+      "Clara",
+      "Cálida y panameña",
+      "Útil antes que vendedora",
+      "Segura, nunca desesperada"
+    ],
+    "ctaUnico": "Escríbenos por WhatsApp",
+    "lexicoSi": [
+      "tu casa",
+      "tu espacio",
+      "quedó",
+      "combina",
+      "te dura",
+      "te cabe",
+      "fácil",
+      "vale la pena",
+      "hoy mismo",
+      "te lo llevamos"
+    ],
+    "lexicoNo": [
+      "precios de locura",
+      "remate",
+      "liquidación total",
+      "¡¡¡CORRE!!!",
+      "mayúsculas gritadas en párrafos",
+      "más de un signo de exclamación",
+      "escasez falsa"
+    ],
+    "$mensajesDeError": "Los errores también son de marca. No se dice «Error 401: credenciales inválidas». Se dice «Ese PIN no es. Puedes intentar de nuevo o pedirle a una vendedora que te lo reinicie.»"
+  }
+}

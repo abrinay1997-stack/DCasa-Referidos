@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="es-PA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel · Socios D'CASA</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1340B1">
+<link rel="icon" href="/hub/assets/logo-dcasa.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500&family=Inter:wght@400;500&display=swap">
+<style>
+  :root {
+    --azul: #1340B1;
+    --amarillo: #FED00F;
+    --blanco: #FFFFFF;
+    --hueso: #EDEAE0;
+    --tinta: #141C2E;
+    --apagado: #6E7686;
+    --borde: #E1DDD1;
+    --radio: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--hueso);
+    color: var(--tinta);
+    font-family: Inter, system-ui, sans-serif;
+    line-height: 1.6;
+  }
+  header {
+    background: var(--azul);
+    color: var(--blanco);
+    padding: 22px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  header .marca {
+    font-family: Anton, Inter, sans-serif;
+    text-transform: uppercase;
+    font-size: 20px;
+    letter-spacing: 0.02em;
+  }
+  #quien {
+    font-family: Oswald, Inter, sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    opacity: 0.9;
+  }
+  main { max-width: 900px; margin: 0 auto; padding: 28px 20px 64px; }
+  h1 {
+    font-family: Anton, Inter, sans-serif;
+    font-weight: 400;
+    text-transform: uppercase;
+    font-size: 30px;
+    color: var(--azul);
+    margin: 0 0 6px;
+  }
+  .antetitulo {
+    font-family: Oswald, Inter, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 13px;
+    color: var(--apagado);
+    margin: 0 0 8px;
+  }
+  .rejilla {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+    margin-top: 26px;
+  }
+  .tarjeta {
+    background: var(--blanco);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+    padding: 20px;
+  }
+  .tarjeta h2 {
+    font-family: Oswald, Inter, sans-serif;
+    font-weight: 500;
+    font-size: 17px;
+    margin: 0 0 6px;
+    color: var(--azul);
+  }
+  .tarjeta p { margin: 0; font-size: 15px; color: var(--apagado); }
+  .tarjeta.pendiente { opacity: 0.6; }
+  .etiqueta {
+    display: inline-block;
+    background: var(--amarillo);
+    color: var(--azul);
+    font-family: Oswald, Inter, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 999px;
+    margin-bottom: 8px;
+  }
+  .aviso {
+    background: var(--blanco);
+    border: 2px solid var(--azul);
+    border-radius: var(--radio);
+    padding: 18px 20px;
+    margin-top: 26px;
+  }
+  .aviso h2 {
+    font-family: Oswald, Inter, sans-serif;
+    font-size: 16px;
+    margin: 0 0 8px;
+    color: var(--azul);
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    background: var(--hueso);
+    padding: 1px 5px;
+    border-radius: 5px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="marca">D'CASA · Panel de socios</span>
+  <span id="quien">comprobando quién entró…</span>
+</header>
+
+<main>
+  <p class="antetitulo">Fase 1 · La puerta</p>
+  <h1>El panel está en pie</h1>
+  <p>Si estás viendo esto, Cloudflare Access te dejó pasar y el Worker verificó
+    la firma de tu token. Las herramientas llegan en la fase 2.</p>
+
+  <div class="rejilla">
+    <div class="tarjeta pendiente">
+      <span class="etiqueta">Fase 2</span>
+      <h2>Registrar una compra</h2>
+      <p>Buscar al socio, teclear la factura y el monto, y sumarle los puntos ahí mismo.</p>
+    </div>
+    <div class="tarjeta pendiente">
+      <span class="etiqueta">Fase 2</span>
+      <h2>Socios</h2>
+      <p>Buscar, ver la ficha, reiniciar un PIN, ajustar puntos con motivo.</p>
+    </div>
+    <div class="tarjeta pendiente">
+      <span class="etiqueta">Fase 4</span>
+      <h2>Canjes</h2>
+      <p>Teclear el código que trae el socio y entregarle su premio.</p>
+    </div>
+    <div class="tarjeta pendiente">
+      <span class="etiqueta">Fase 5</span>
+      <h2>Reportes</h2>
+      <p>Cuántos socios entran, cuántos puntos se emiten y cuántos se canjean.</p>
+    </div>
+  </div>
+
+  <div class="aviso">
+    <h2>Antes de que esto sirva para algo</h2>
+    <p>El programa no puede acreditar un solo punto hasta que
+      <code>datos/puntos.json</code> deje de tener valores en
+      <code>PENDIENTE</code>. Son decisiones de Marcial, no del código: cuántos
+      puntos da cada dólar, si se calculan sobre el total o sobre el subtotal
+      sin ITBMS, y cuánto gana quien trae a alguien.</p>
+  </div>
+</main>
+
+<script type="module" src="/panel/quien.js"></script>
+</body>
+</html>
