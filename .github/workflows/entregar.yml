@@ -262,93 +262,18 @@ jobs:
   # ---------------------------------------------------------------------------
   # 4. COMPROBAR EN VIVO. Que lo publicado responda de verdad.
   #
-  # ── POR QUÉ NO BASTA CON QUE LAS PRUEBAS PASEN ──────────────────────────────
+  # Las tres cruces de arriba corren contra una base local y un runtime local.
+  # Hay fallos que solo existen en producción y ninguno deja huella aquí: el
+  # flujo sale verde y lo publicado no funciona. Eso ya pasó, y la forma en que
+  # se supo fue que el dueño se quedó sin poder registrarse en su propio
+  # programa.
   #
-  # Las pruebas corren contra una base local y un runtime local. Hay fallos que
-  # solo existen en producción —un secreto que falta, un límite de la cuenta,
-  # una migración que no llegó— y ninguno de ellos deja huella en el flujo: las
-  # tres cruces de arriba salen verdes y lo publicado no funciona. Eso ya pasó
-  # una vez, y la forma en que se supo fue que el dueño se quedó sin poder
-  # registrarse en su propio programa.
-  #
-  # Así que aquí se llama a lo publicado, desde fuera, como lo llamaría un
-  # cliente con su teléfono.
-  #
-  # ── POR QUÉ ESTE PROBE Y NO UN ALTA DE MENTIRA ─────────────────────────────
-  #
-  # Dar de alta a un socio falso en cada empuje ensucia la base del negocio y
-  # obliga a borrarlo después, que es otra cosa que puede fallar y dejar basura.
-  #
-  # `entrar` con un número que no existe hace EXACTAMENTE el mismo trabajo caro
-  # que registrarse —deriva un PIN completo contra un señuelo, a propósito, para
-  # que el reloj no diga lo que el mensaje calla (ver `derivarEnVano`)— y no
-  # escribe nada. Si derivar un PIN no se puede hacer en producción, esta
-  # llamada lo dice, y lo dice sin tocar un solo dato.
-  #
-  # El número es `00000000` y no un celular cualquiera: no empieza por
-  # [234567], así que `telefonoValido` lo rechaza y NINGUNA ficha puede tenerlo.
-  # Con un número real corríamos el riesgo de sumarle un intento fallido a
-  # alguien, y a los cinco su cuenta se bloquea sola.
+  # El sondeo está en su propio archivo porque también se lanza a mano, sin
+  # desplegar, cuando algo huele mal. Ahí está explicado qué aísla cada llamada
+  # y por qué ninguna escribe nada.
   # ---------------------------------------------------------------------------
   comprobar:
     name: Comprobar en vivo
     needs: [probar, migrar, desplegar]
     if: github.event_name != 'pull_request' && needs.probar.outputs.hay_llave == 'si'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Lo publicado contesta
-        env:
-          SITIO: https://dcasa-socios.abrinay1997.workers.dev
-        run: |
-          set -u
-          fallos=0
-
-          mirar() {
-            nombre="$1"; esperado="$2"; metodo="$3"; ruta="$4"; cuerpo="${5:-}"
-
-            if [ -n "$cuerpo" ]; then
-              estado=$(curl -sS -o /tmp/respuesta -w '%{http_code}' --max-time 40 \
-                -X "$metodo" -H 'Content-Type: application/json' --data "$cuerpo" \
-                "$SITIO$ruta" || echo 000)
-            else
-              estado=$(curl -sS -o /tmp/respuesta -w '%{http_code}' --max-time 40 \
-                -X "$metodo" "$SITIO$ruta" || echo 000)
-            fi
-
-            if [ "$estado" = "$esperado" ]; then
-              echo "  ✅ $nombre — $estado"
-            else
-              echo "  ❌ $nombre — esperaba $esperado y contestó $estado"
-              echo "     Lo que contestó, tal cual, sin recortar la parte que importa:"
-              head -c 1200 /tmp/respuesta | sed 's/^/       /'
-              echo ""
-              fallos=$((fallos + 1))
-            fi
-          }
-
-          echo "── El Worker está en pie ──────────────────────────────"
-          mirar "el pulso"                200 GET  "/api/salud"
-          mirar "la portada del socio"    200 GET  "/"
-          mirar "los términos"            200 GET  "/api/terminos"
-
-          echo ""
-          echo "── Se puede derivar un PIN (lo que hace entrar y registrarse) ──"
-          mirar "un número que no existe" 401 POST "/api/socio/entrar" \
-            '{"telefono":"00000000","pin":"418290"}'
-
-          echo ""
-          echo "── El panel del equipo NO está abierto ────────────────"
-          estado=$(curl -sS -o /tmp/panel -w '%{http_code}' --max-time 40 "$SITIO/panel/" || echo 000)
-          if [ "$estado" = "200" ]; then
-            echo "  ❌ /panel/ contesta 200 SIN pasar por Access. Está abierto a cualquiera."
-            fallos=$((fallos + 1))
-          else
-            echo "  ✅ el panel pide identificarse — $estado"
-          fi
-
-          echo ""
-          if [ "$fallos" -gt 0 ]; then
-            echo "::error::$fallos comprobación(es) en vivo fallaron. Lo publicado NO funciona."
-            exit 1
-          fi
-          echo "Todo lo publicado responde."
+    uses: ./.github/workflows/sondeo.yml

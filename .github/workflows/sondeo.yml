@@ -1,14 +1,24 @@
-# Preguntarle a lo publicado qué pieza suya está rota, sin desplegar nada.
+# Preguntarle a lo publicado qué pieza suya está rota.
 #
 # ── PARA QUÉ ───────────────────────────────────────────────────────────────
 #
-# «Comprobar en vivo» (en `entregar.yml`) dice SI algo está roto, y corre solo
-# después de publicar. Esto dice CUÁL, y corre cuando uno quiera, en veinte
-# segundos, sin tocar el Worker.
+# Las pruebas del repositorio corren contra una base local y un runtime local.
+# Hay fallos que solo existen en producción —un secreto que falta, un límite de
+# la cuenta, una migración que no llegó, una función de la plataforma que en
+# local hace una cosa y arriba otra— y ninguno deja huella en el flujo: sale
+# todo verde y lo publicado no funciona.
 #
-# Cada llamada de aquí abajo está elegida para aislar UNA pieza:
+# Eso pasó. El dueño llenó el formulario de registro de su propia app, con sus
+# datos, y recibió «Algo falló de nuestro lado». Las mismas peticiones, byte a
+# byte, funcionaban en local.
 #
-#   · el pulso y los términos     el Worker corre y lee sus reglas. Ni una de
+# Así que esto llama a lo publicado desde fuera, como lo llamaría un cliente
+# con su teléfono. Corre solo después de cada despliegue (`entregar.yml` lo
+# usa) y también a mano, cuando uno quiera, sin tocar el Worker.
+#
+# ── CADA LLAMADA AÍSLA UNA PIEZA ───────────────────────────────────────────
+#
+#   · el pulso y los términos     el Worker corre y lee sus reglas. Ninguna de
 #                                 las dos toca la base ni deriva nada.
 #   · el padrino de un código     la BASE contesta. No deriva ningún PIN.
 #   · entrar sin número           se DERIVA UN PIN. No toca la base: con el
@@ -16,12 +26,19 @@
 #                                 va directo al señuelo.
 #   · entrar con un número        las dos cosas juntas, que es lo que hace de
 #                                 verdad un cliente en el mostrador.
+#   · el panel                    que NO conteste 200 sin pasar por Access.
 #
 # Si la tercera pasa y la cuarta no, el problema es derivar el PIN. Si es al
 # revés, es la base. Si fallan las dos, es el Worker entero. Eso es lo que no
 # se puede averiguar mirando el repositorio.
 #
 # ── NO ESCRIBE NADA, Y NO ES CASUALIDAD ────────────────────────────────────
+#
+# Dar de alta a un socio de mentira en cada despliegue ensucia la base del
+# negocio y obliga a borrarlo después, que es otra cosa que puede fallar y
+# dejar basura. `entrar` con un número desconocido hace el mismo trabajo caro
+# que registrarse —deriva un PIN completo contra un señuelo, a propósito, para
+# que el reloj no diga lo que el mensaje calla— y no escribe nada.
 #
 # El número es `00000000`: no empieza por [234567], así que `telefonoValido` lo
 # rechaza y NINGUNA ficha puede tenerlo. Con un celular real corríamos el
@@ -34,6 +51,7 @@
 name: Sondear lo publicado
 
 on:
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -49,6 +67,7 @@ jobs:
           SITIO: https://dcasa-socios.abrinay1997.workers.dev
         run: |
           set -u
+          fallos=0
 
           mirar() {
             nombre="$1"; esperado="$2"; metodo="$3"; ruta="$4"; cuerpo="${5:-}"
@@ -62,22 +81,47 @@ jobs:
                 -X "$metodo" "$SITIO$ruta" || echo 000)
             fi
 
-            marca="✅"
-            [ "$estado" = "$esperado" ] || marca="❌"
-            echo "$marca $nombre — esperaba $esperado, contestó $estado"
-            echo "   $(head -c 400 /tmp/r)"
-            echo ""
+            if [ "$estado" = "$esperado" ]; then
+              echo "✅ $nombre — $estado"
+            else
+              echo "❌ $nombre — esperaba $esperado y contestó $estado"
+              fallos=$((fallos + 1))
+            fi
+            # El cuerpo SIEMPRE, también cuando pasa: es lo único que distingue
+            # una excepción nuestra de un error de la plataforma, y cuando algo
+            # se tuerce uno quiere poder comparar con el sondeo de ayer.
+            echo "     $(head -c 400 /tmp/r)"
           }
 
-          echo "### Lo publicado, pieza por pieza" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Lo publicado, pieza por pieza"
+            echo ""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
           {
-            mirar "el Worker corre"        200 GET  "/api/salud"
-            mirar "lee sus reglas"         200 GET  "/api/terminos"
-            mirar "LA BASE contesta"       200 GET  "/api/socio/padrino?r=DCAZZZZZZ"
-            mirar "SE DERIVA UN PIN"       401 POST "/api/socio/entrar" '{"telefono":"","pin":"418290"}'
-            mirar "las dos cosas juntas"   401 POST "/api/socio/entrar" '{"telefono":"00000000","pin":"418290"}'
+            mirar "el Worker corre"       200 GET  "/api/salud"
+            mirar "lee sus reglas"        200 GET  "/api/terminos"
+            mirar "LA BASE contesta"      200 GET  "/api/socio/padrino?r=DCAZZZZZZ"
+            mirar "SE DERIVA UN PIN"      401 POST "/api/socio/entrar" '{"telefono":"","pin":"418290"}'
+            mirar "las dos cosas juntas"  401 POST "/api/socio/entrar" '{"telefono":"00000000","pin":"418290"}'
+
+            # El panel es al revés: aquí lo que no puede pasar es un 200. Un 302
+            # es Access mandando a identificarse, y un 503 es el Worker negándose
+            # a servirlo porque la puerta está mal puesta. Los dos están bien;
+            # abierto, no.
+            estado=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 40 "$SITIO/panel/" || echo 000)
+            if [ "$estado" = "200" ]; then
+              echo "❌ el panel del equipo contesta 200 SIN pasar por Access. Está abierto."
+              fallos=$((fallos + 1))
+            else
+              echo "✅ el panel pide identificarse — $estado"
+            fi
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$fallos" -gt 0 ]; then
+            echo "::error::$fallos pieza(s) de lo publicado no contestan lo que deben."
+            exit 1
+          fi
