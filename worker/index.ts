@@ -318,6 +318,8 @@ async function zonaPublica(peticion: Request, url: URL, env: Env): Promise<Respo
       puntosAlPadrino: REGLAS.referido.puntosAlPadrino,
       puntosAlAhijado: REGLAS.referido.puntosAlAhijado,
       topeDePuntosPorPadrinoAlMes: REGLAS.referido.topeDePuntosPorPadrinoAlMes,
+      topeDeAhijadosPorPadrino: REGLAS.referido.topeDeAhijadosPorPadrino,
+      puntosDeCumpleanos: REGLAS.cumpleanos.puntos,
       vigenciaDelCodigoHoras: REGLAS.canje.vigenciaDelCodigoHoras,
       vencimientoMeses: REGLAS.vencimiento.meses,
     });

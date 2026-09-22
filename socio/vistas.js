@@ -681,9 +681,25 @@ export function terminos({ reglas, ir, hayVuelta }) {
           'Registrarse no paga nada.',
         reglas?.topeDePuntosPorPadrinoAlMes && reglas?.puntosAlPadrino
           ? `Hay un tope de ${Math.floor(reglas.topeDePuntosPorPadrinoAlMes / reglas.puntosAlPadrino)} ` +
-              'invitaciones cobrables al mes.'
+              'invitaciones cobrables al mes' +
+              (reglas.topeDeAhijadosPorPadrino
+                ? `, y de ${comoPuntos(reglas.topeDeAhijadosPorPadrino)} personas en total.`
+                : '.')
           : null,
       ),
+
+      // El cumpleaños se acredita solo, sin que el socio pida nada. Si no
+      // estuviera escrito aquí, el día que le entren 500 puntos de la nada
+      // tendría que preguntar de dónde salieron — y un punto que aparece sin
+      // explicación se parece demasiado a un error.
+      reglas?.puntosDeCumpleanos
+        ? apartado(
+            'Tu cumpleaños',
+            `El día de tu cumpleaños te regalamos ${comoPuntos(reglas.puntosDeCumpleanos)} puntos, ` +
+              'una vez al año. Aparecen solos en tu cuenta.',
+            'Para eso hay que haber comprado alguna vez. Si nunca has comprado, no entran.',
+          )
+        : null,
 
       apartado(
         'Cómo los cambias',
