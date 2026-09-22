@@ -15,7 +15,7 @@
  */
 
 import { REGLAS } from './reglas';
-import { sentenciaAsiento } from './movimientos';
+import { sentenciaAsiento, sentenciaReverso } from './movimientos';
 
 /** Por qué no se pagó, cuando no se paga. Se guarda en el registro del panel. */
 export type MotivoSinPagar =
@@ -69,6 +69,15 @@ export async function alRegistrarCompra(
   puntosDeLaCompra: number,
   ahora: string,
   autor: string,
+  /**
+   * La compra que dispara el pago.
+   *
+   * Los dos asientos del referido la llevan escrita, y NO es decorativo: es lo
+   * único que permite deshacerlos si esa compra se anula. Sin este enlace, una
+   * venta anulada se llevaba sus propios puntos y dejaba los $7.50 del referido
+   * regalados, porque nadie sabía de qué compra habían salido.
+   */
+  compraId: string,
 ): Promise<Resultado> {
   if (!comprador.referido_por) return { ...NADA, motivo: 'sin-padrino' };
 
@@ -89,8 +98,10 @@ export async function alRegistrarCompra(
   // ---------------------------------------------------------------------
   if (puntosDeLaCompra <= 0) return { ...NADA, motivo: 'no-califica' };
 
-  // El sello es lo que impide pagar dos veces, y aguanta incluso si la primera
-  // compra se anula y se vuelve a registrar: al anular NO se limpia.
+  // El sello es lo que impide pagar dos veces. Al ANULAR la compra que lo puso
+  // sí se limpia —ver `deshacerPorCompra`— porque si no, la primera compra de
+  // verdad de esa persona no pagaría a nadie: la anulada se habría llevado el
+  // derecho por delante.
   if (comprador.referido_pagado_en) return { ...NADA, motivo: 'ya-pagado' };
 
   const { puntosAlPadrino, puntosAlAhijado, topeDeAhijadosPorPadrino, topeDePuntosPorPadrinoAlMes } =
@@ -170,6 +181,7 @@ export async function alRegistrarCompra(
       // `origen_socio` es lo que hace contable este asiento, y de paso lo que
       // permite enseñarle al padrino de quién vino cada bono.
       origenSocio: comprador.codigo,
+      compraId,
       motivo: `Primera compra de ${comprador.nombre}`,
       autor,
       ocurridoEn: ahora,
@@ -183,6 +195,7 @@ export async function alRegistrarCompra(
         tipo: 'referido',
         puntos: puntosAlAhijado,
         // SIN `origen_socio`, a propósito: ver arriba.
+        compraId,
         motivo: 'Bono por venir invitado',
         autor,
         ocurridoEn: ahora,
@@ -238,4 +251,73 @@ export async function deSocio(base: D1Database, codigo: string) {
     compro: Boolean(f.referido_pagado_en),
     puntos: f.puntos ?? 0,
   }));
+}
+
+/**
+ * Deshace el pago de referido que disparó una compra, al anularla.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUÉ ESTO TIENE QUE EXISTIR
+ *
+ * Sin esto, anular una venta dejaba los puntos del referido en pie. Medido
+ * sobre el sistema en marcha: una venta de $1,070 a un invitado pagaba 500 al
+ * padrino y 250 al ahijado; al anularla, la compra devolvía sus 1,070 puntos y
+ * los 750 del referido se quedaban donde estaban.
+ *
+ * Eso son dos problemas a la vez, y el segundo es peor que el primero:
+ *
+ *   1. UN FRAUDE REPETIBLE. Emitir una venta a nombre de un conocido, cobrar
+ *      los $7.50 en puntos y anularla. Cincuenta veces, que es el tope de
+ *      ahijados, son $375 en premios por ventas que nunca ocurrieron.
+ *
+ *   2. UN CLIENTE PERJUDICADO EN SILENCIO. El sello `referido_pagado_en`
+ *      quedaba puesto, así que la PRIMERA COMPRA DE VERDAD de esa persona ya
+ *      no pagaba a nadie. El padrino se quedaba sin su bono y nadie podía
+ *      explicarle por qué: comprobado que la segunda venta, real, devolvía
+ *      `referido: null`.
+ *
+ * Se devuelven sentencias y no se ejecutan, para que entren en el MISMO batch
+ * que la anulación. Unos puntos de referido revertidos sin la venta anulada que
+ * los explica —o al revés— son estados que no pueden existir.
+ *
+ * Las compras anteriores a este cambio no tienen sus asientos de referido
+ * enlazados, así que para ellas esto no encuentra nada y no hace nada. Es lo
+ * correcto: inventar de qué compra salió un asiento viejo sería peor que
+ * dejarlo.
+ */
+export async function deshacerPorCompra(
+  base: D1Database,
+  compraId: string,
+  compradorCodigo: string,
+  motivo: string,
+  autor: string,
+): Promise<D1PreparedStatement[]> {
+  const { results } = await base
+    .prepare(
+      `SELECT id, socio_codigo, puntos FROM movimientos
+        WHERE compra_id = ? AND tipo = 'referido'`,
+    )
+    .bind(compraId)
+    .all<{ id: string; socio_codigo: string; puntos: number }>();
+
+  const asientos = results ?? [];
+  if (!asientos.length) return [];
+
+  const sentencias = asientos.map((a) =>
+    sentenciaReverso(
+      base,
+      { id: a.id, socioCodigo: a.socio_codigo, puntos: a.puntos },
+      `Se anuló la compra que lo generó: ${motivo}`,
+      autor,
+    ),
+  );
+
+  // Y se suelta el sello, para que la primera compra de verdad sí pague.
+  sentencias.push(
+    base
+      .prepare(`UPDATE socios SET referido_pagado_en = NULL WHERE codigo = ?`)
+      .bind(compradorCodigo),
+  );
+
+  return sentencias;
 }

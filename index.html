@@ -201,6 +201,77 @@
      salto de un renglón la primera vez que se elige un día. */
   .cumple-leido:not(:empty) { display: block; margin-top: 6px; font-weight: 500; color: var(--azul); }
 
+  /* ---------------------------------------------------------------------
+     LA AYUDA EMERGENTE
+     Ver `hub/ayuda.js` para el porqué de que no sea un `title`.
+     --------------------------------------------------------------------- */
+
+  .ayuda { position: relative; display: inline-block; vertical-align: middle; }
+
+  /* El círculo se ve de 20px, pero se toca en 44. El área táctil la pone el
+     ::after, que es transparente y se sale del círculo: agrandar el círculo de
+     verdad convertiría un signo de ayuda en el elemento más gordo del
+     renglón. 44px es el mínimo de la pauta de accesibilidad y el ancho real de
+     la yema de un pulgar. */
+  .ayuda-boton {
+    position: relative;
+    display: block;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 1px solid var(--borde);
+    border-radius: 50%;
+    background: var(--blanco);
+    color: var(--apagado);
+    font: inherit;
+    font-size: 12px;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+  }
+  .ayuda-boton::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  .ayuda-boton:hover, .ayuda-boton[aria-expanded='true'] {
+    border-color: var(--azul);
+    color: var(--azul);
+  }
+  .ayuda-boton:focus-visible { outline: 3px solid var(--azul); outline-offset: 2px; }
+
+  .ayuda-globo {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 8px);
+    /* Anclado a la IZQUIERDA del «?» y limitado al ancho de la ventana menos
+       los márgenes: a 360px, un globo centrado se sale por un lado u otro
+       según dónde caiga el signo. */
+    left: 0;
+    width: max-content;
+    max-width: min(280px, calc(100vw - 48px));
+    padding: 11px 13px;
+    border-radius: 10px;
+    background: var(--tinta);
+    color: var(--blanco);
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.45;
+    letter-spacing: 0;
+    text-transform: none;
+    text-align: left;
+    white-space: normal;
+    box-shadow: 0 8px 24px rgba(20, 28, 46, 0.22);
+  }
+  /* Si el globo se sale por un lado, lo empuja `acomodar()` en hub/ayuda.js,
+     midiendo al abrir. Aquí no se adivina: la versión anterior lo intentaba con
+     `:nth-last-child` y mandaba globos fuera de la pantalla. */
+
   .casilla { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; margin: 4px 0 18px; }
   .casilla input { width: 22px; height: 22px; margin-top: 2px; flex: none; accent-color: var(--azul); }
   .casilla a { color: var(--azul); }

@@ -30,20 +30,63 @@ export interface ReglasVenta {
   itbmsPorcentaje: number;
 }
 
+/**
+ * Qué es cada renglón.
+ *
+ * LOS TRES VAN AL MISMO 7 %, y no es un descuido. El flete y el armado de lo
+ * que uno mismo vende son «servicios accesorios» y entran en la base imponible
+ * del ITBMS: el Decreto Ejecutivo 84 de 2005 nombra expresamente la «entrega o
+ * entrega a domicilio» y los «gastos de instalación o montaje» entre ellos, se
+ * facturen junto con el bien o por separado.
+ *
+ * La exención del transporte de carga es para quien presta el servicio de
+ * transporte como tal, no para la mueblería que reparte lo que vendió. Sacar
+ * el flete de la base porque «el transporte está exento» es declarar de menos.
+ *
+ * El tipo existe para que el comprobante lo diga y para poder sumar aparte lo
+ * que la tienda cobra por llevar y armar — no para cambiar la tasa.
+ */
+export type TipoLinea = 'articulo' | 'flete' | 'armado';
+
+export const NOMBRE_TIPO_LINEA: Record<TipoLinea, string> = {
+  articulo: 'Artículo',
+  flete: 'Entrega a domicilio',
+  armado: 'Armado e instalación',
+};
+
+export function esTipoLinea(valor: unknown): valor is TipoLinea {
+  return valor === 'articulo' || valor === 'flete' || valor === 'armado';
+}
+
 /** Una línea del comprobante. */
 export interface LineaVenta {
   descripcion: string;
   cantidad: number;
   /** Precio de UNA unidad, sin ITBMS, en centavos enteros. */
   precioCentavos: number;
+  /** Qué clase de renglón es. Si falta, un artículo. */
+  tipo?: TipoLinea;
 }
 
 /** Lo que la pantalla manda para emitir. */
 export interface DatosVenta {
   lineas: LineaVenta[];
-  /** Lo que se rebajó, sobre el bruto y antes del ITBMS. En una mueblería se
-   *  negocia en el mostrador, así que existe. */
+  /** Lo que se rebajó negociando, sobre el bruto y antes del ITBMS. En una
+   *  mueblería se negocia en el mostrador, así que existe. */
   descuentoCentavos: number;
+  /**
+   * Lo que el cliente pagó con puntos, ya cobrado de sus premios canjeados.
+   *
+   * SEPARADO DEL DESCUENTO A PROPÓSITO. Son dos cosas distintas: una es margen
+   * que la tienda cede para cerrar la venta, y la otra es el programa de puntos
+   * pagándose solo. Mezclarlas en una cifra hace imposible responder «¿cuánto
+   * me costó el programa este mes?».
+   *
+   * La pantalla NO lo teclea: sale de los códigos de premio que se apliquen, y
+   * lo calcula el servidor leyendo lo que vale cada premio. Ver
+   * `worker/ventas.ts`.
+   */
+  canjeCentavos: number;
   notas: string;
 }
 
@@ -57,10 +100,30 @@ export interface DatosVenta {
  * jamás.
  */
 export interface TotalesVenta {
-  /** Lo que suman las líneas, antes del descuento. */
+  /** Lo que suman las líneas, antes de rebajar nada. */
   brutoCentavos: number;
   descuentoCentavos: number;
-  /** Bruto menos descuento. Es la base del ITBMS. */
+  /** Lo pagado con puntos. Ver `DatosVenta.canjeCentavos`. */
+  canjeCentavos: number;
+  /**
+   * Bruto menos el descuento y menos los puntos. ES LA BASE DEL ITBMS.
+   *
+   * Que el canje reste ANTES del impuesto es una decisión con consecuencia
+   * fiscal, y está tomada así por una razón práctica que manda sobre las
+   * demás: **la caja fiscal y este comprobante tienen que decir el mismo
+   * total**. La vendedora teclea el canje como un descuento en la caja —es lo
+   * único que la caja sabe hacer con él— y allí rebaja la base. Si aquí no
+   * rebajara, los dos documentos de la misma venta dirían cifras distintas.
+   *
+   * El Decreto 84 de 2005 respalda el tratamiento: exige que los descuentos y
+   * bonificaciones queden reflejados en el documento de venta en la oportunidad
+   * del cobro, y el descuento rebaja la base.
+   *
+   * Es defendible y no es la única postura posible: tratarlo como medio de pago
+   * dejaría la base intacta. La diferencia es de 7 centavos por cada dólar
+   * canjeado. **Que el contador de D'CASA lo confirme por escrito antes de que
+   * esto lleve mucho volumen encima.**
+   */
   subtotalCentavos: number;
   itbmsCentavos: number;
   totalCentavos: number;
@@ -159,13 +222,23 @@ export function totalesDe(datos: DatosVenta, reglas: ReglasVenta): TotalesVenta 
   if (!Number.isInteger(descuentoCentavos) || descuentoCentavos < 0) {
     throw new VentaInvalida('descuentoCentavos', 'El descuento no es válido.');
   }
-  // Un descuento mayor que la venta deja un total negativo, que no es una
-  // venta: es una devolución, y una devolución se hace anulando.
-  if (descuentoCentavos > brutoCentavos) {
-    throw new VentaInvalida('descuentoCentavos', 'El descuento es mayor que la venta.');
+
+  const canjeCentavos = datos?.canjeCentavos ?? 0;
+  if (!Number.isInteger(canjeCentavos) || canjeCentavos < 0) {
+    throw new VentaInvalida('canjeCentavos', 'El canje no es válido.');
   }
 
-  const subtotalCentavos = brutoCentavos - descuentoCentavos;
+  // Rebajar más de lo que vale la venta deja un total negativo, que no es una
+  // venta. Se comprueban JUNTOS: por separado, un descuento del 60 % y un canje
+  // del 60 % pasaban los dos y dejaban la venta en negativo.
+  if (descuentoCentavos + canjeCentavos > brutoCentavos) {
+    throw new VentaInvalida(
+      'descuentoCentavos',
+      'El descuento y los puntos juntos son más que la venta.',
+    );
+  }
+
+  const subtotalCentavos = brutoCentavos - descuentoCentavos - canjeCentavos;
   const itbmsCentavos = itbmsDe(subtotalCentavos, reglas);
   const totalCentavos = subtotalCentavos + itbmsCentavos;
 
@@ -173,10 +246,18 @@ export function totalesDe(datos: DatosVenta, reglas: ReglasVenta): TotalesVenta 
   // o de descontar el cien por ciento, y en los dos casos lo que hay es un
   // regalo: no lleva comprobante de venta ni suma puntos.
   if (totalCentavos <= 0) {
-    throw new VentaInvalida('lineas', 'La venta suma cero. Revisa los precios o el descuento.');
+    throw new VentaInvalida('lineas', 'La venta suma cero. Revisa los precios y las rebajas.');
   }
 
-  return { brutoCentavos, descuentoCentavos, subtotalCentavos, itbmsCentavos, totalCentavos, unidades };
+  return {
+    brutoCentavos,
+    descuentoCentavos,
+    canjeCentavos,
+    subtotalCentavos,
+    itbmsCentavos,
+    totalCentavos,
+    unidades,
+  };
 }
 
 // ---------------------------------------------------------------------------

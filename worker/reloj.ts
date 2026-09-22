@@ -33,6 +33,21 @@ export function diaYMesEnPanama(instante = new Date()): string {
   return enPanama(instante).toISOString().slice(5, 10);
 }
 
+/**
+ * El día que era EN PANAMÁ cuando ocurrió algo que se guardó en UTC.
+ *
+ * Es lo que hay que usar para enseñar la fecha de cualquier cosa guardada con
+ * `new Date().toISOString()`. Recortar los diez primeros caracteres de ese ISO
+ * —`slice(0, 10)`— es lo que hacía que una venta del sábado a las 7:30 de la
+ * tarde saliera como domingo en el historial, en la ficha del cliente y en los
+ * reportes, mientras el comprobante impreso decía sábado. Dos fechas para la
+ * misma venta, en un documento cuyo trabajo es poder cruzarse contra la
+ * factura fiscal.
+ */
+export function diaEnPanama(iso: string): string {
+  return hoyEnPanama(new Date(iso));
+}
+
 /** El año que corre en Panamá. Lo que numera el consecutivo. */
 export function anioEnPanama(instante = new Date()): string {
   return enPanama(instante).toISOString().slice(0, 4);

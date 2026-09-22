@@ -16,6 +16,7 @@
 
 import { api, comoDolares, comoFecha, comoPuntos } from './api.js';
 import { el, campo, aviso, alEnviar, rellenar } from './vistas.js';
+import { ayuda } from '../hub/ayuda.js';
 import { paginador } from './facturas.js';
 import { selectorDeCumple, cumpleEnPalabras } from '../hub/cumple.js';
 
@@ -174,14 +175,15 @@ export function libreta({ ir, admin, adminSinLista }) {
  * pantalla y no un comentario en un archivo.
  */
 function avisoSinAdmin() {
-  return el('div', { clase: 'tarjeta nota-grande' }, [
-    el('h2', { texto: 'Cuando entre más gente al panel' }),
-    el('p', {
-      texto:
-        'Ahora mismo, cualquiera que entre aquí puede borrar una ficha definitivamente. ' +
-        'Está bien mientras seas el único. En cuanto entren las vendedoras, hay que poner ' +
-        'los correos de quien pueda hacerlo en CORREOS_ADMIN, dentro de wrangler.jsonc.',
-    }),
+  return el('p', { clase: 'nota recordatorio' }, [
+    document.createTextNode('Cualquiera que entre a este panel puede borrar un cliente para siempre.'),
+    ayuda(
+      'Está bien mientras seas el único que entra. Cuando entren las vendedoras hay que ' +
+        'poner los correos de quien sí pueda borrar en CORREOS_ADMIN, dentro de ' +
+        'wrangler.jsonc, y volver a publicar. Este recordatorio desaparece solo cuando esa ' +
+        'lista deje de estar vacía.',
+      { etiqueta: 'Qué hay que hacer' },
+    ),
   ]);
 }
 
@@ -204,12 +206,16 @@ export function fichaCliente({ datos, ir, recargar, admin }) {
   return el('div', {}, [
     c.eliminadoEn
       ? el('div', { clase: 'tarjeta nota-grande' }, [
-          el('h2', { texto: 'Esta ficha está en la papelera' }),
-          el('p', { texto: `La retiró ${c.eliminadoPor ?? 'alguien'} el ${comoFecha(c.eliminadoEn)}. No sale en las listas y no puede entrar a su cuenta. Lo que compró sigue guardado.` }),
+          el('h2', { texto: 'Este cliente está en la papelera' }),
+          el('p', {}, [
+            document.createTextNode(
+              `Lo quitó ${c.eliminadoPor ?? 'alguien'} el ${comoFecha(c.eliminadoEn)}. Lo que compró sigue guardado.`,
+            ),
+          ]),
           el('button', {
             clase: 'boton',
             type: 'button',
-            texto: 'Restaurarla',
+            texto: 'Devolverlo a la lista',
             onclick: async () => {
               await api.restaurarCliente(c.codigo);
               recargar();
@@ -234,9 +240,9 @@ export function fichaCliente({ datos, ir, recargar, admin }) {
         c.correo ? renglonDato('Correo', c.correo) : null,
         c.direccion ? renglonDato('Dirección', c.direccion) : null,
         c.cumple ? renglonDato('Cumpleaños', cumpleEnPalabras(c.cumple)) : null,
-        c.atendidoPor ? renglonDato('La atiende', c.atendidoPor.split('@')[0]) : null,
+        c.atendidoPor ? renglonDato('Lo atiende', c.atendidoPor.split('@')[0]) : null,
         renglonDato('Cliente desde', comoFecha(c.creadoEn)),
-        datos.padrino ? renglonDato('La trajo', datos.padrino.nombre) : null,
+        datos.padrino ? renglonDato('Lo invitó', datos.padrino.nombre) : null,
       ]),
       c.notas ? el('p', { clase: 'notas-ficha', texto: c.notas }) : null,
     ]),
@@ -264,7 +270,7 @@ export function fichaCliente({ datos, ir, recargar, admin }) {
         el('button', {
           clase: 'boton secundario',
           type: 'button',
-          texto: 'Ver su cuenta de socio',
+          texto: 'Su PIN y sus puntos',
           onclick: () => ir(`#/socio/${c.codigo}`),
         }),
       ]),
@@ -292,7 +298,7 @@ export function fichaCliente({ datos, ir, recargar, admin }) {
       null,
     ),
 
-    listaDe('A quién ha traído', datos.traidos, (t) =>
+    listaDe('A quién ha invitado', datos.traidos, (t) =>
       el('button', { clase: 'resultado', type: 'button', onclick: () => ir(`#/cliente/${t.codigo}`) }, [
         el('span', { clase: 'nombre', texto: t.nombre }),
         el('span', { clase: 'meta', texto: t.compro ? 'Ya compró' : 'Todavía no ha comprado' }),
@@ -354,18 +360,21 @@ function zonaPeligro(c, ir, recargar) {
 
   const pintar = () =>
     rellenar(caja, 
-      el('h2', { texto: 'Retirar esta ficha' }),
-      el('p', {
-        clase: 'nota',
-        texto:
-          'Deja de salir en las listas y no puede entrar a su cuenta. Lo que compró, ' +
-          'sus comprobantes y sus puntos NO se borran: si vuelve, se restaura y ' +
-          'se encuentra su saldo intacto.',
-      }),
+      el('h2', { texto: 'Quitar de la lista' }),
+      el('p', { clase: 'nota' }, [
+        document.createTextNode('Deja de salir en las listas. No se borra nada de lo que compró.'),
+        ayuda(
+          'Sus comprobantes, sus compras y sus puntos siguen guardados igual, y las cifras de ' +
+            'Reportes no cambian. Lo único que pasa es que no sale en las listas y no puede ' +
+            'entrar a su cuenta. Si vuelve a la tienda, se devuelve a la lista desde la ' +
+            'papelera y se encuentra su saldo intacto.',
+          { etiqueta: 'Qué pasa con lo que compró' },
+        ),
+      ]),
       el('button', {
         clase: 'boton peligro',
         type: 'button',
-        texto: 'Retirar a la papelera',
+        texto: 'Quitar de la lista',
         onclick: () => confirmar(),
       }),
     );
@@ -373,11 +382,11 @@ function zonaPeligro(c, ir, recargar) {
   const confirmar = () =>
     rellenar(caja, 
       el('h2', { texto: '¿Seguro?' }),
-      el('p', { clase: 'nota', texto: `Se retira la ficha de ${c.nombre}. Se puede deshacer desde la papelera.` }),
+      el('p', { clase: 'nota', texto: `${c.nombre} deja de salir en la lista. Se puede deshacer desde la papelera.` }),
       el('button', {
         clase: 'boton peligro',
         type: 'button',
-        texto: 'Sí, retirarla',
+        texto: 'Sí, quitarlo',
         onclick: async () => {
           try {
             await api.retirarCliente(c.codigo);
@@ -406,25 +415,28 @@ function borradoDefinitivo(c, ir) {
 
   const pintar = () =>
     rellenar(caja, 
-      el('h2', { texto: 'Borrarla para siempre' }),
-      el('p', {
-        clase: 'nota',
-        texto:
-          'Esto no se deshace. Solo funciona si la ficha no tiene nada colgando: ' +
-          'en cuanto tenga una venta o un movimiento de puntos, el sistema no la borra ' +
-          'y la papelera es lo más lejos que llega.',
-      }),
+      el('h2', { texto: 'Borrar para siempre' }),
+      el('p', { clase: 'nota' }, [
+        document.createTextNode('Esto no se deshace.'),
+        ayuda(
+          'Solo se borra del todo un cliente que no tiene nada guardado: ni ventas, ni ' +
+            'compras, ni puntos, ni gente invitada. En cuanto tenga algo de eso, el sistema no ' +
+            'lo borra, porque se llevaría por delante el historial de dinero que entró a la ' +
+            'tienda. Para ésos, la papelera es lo más lejos que llega.',
+          { etiqueta: 'Cuándo se puede borrar' },
+        ),
+      ]),
       el('button', {
         clase: 'boton peligro',
         type: 'button',
-        texto: 'Borrar definitivamente',
+        texto: 'Borrar para siempre',
         onclick: async () => {
           try {
             await api.borrarCliente(c.codigo);
             ir('#/clientes');
           } catch (fallo) {
             rellenar(caja, 
-              el('h2', { texto: 'No se puede borrar del todo' }),
+              el('h2', { texto: 'No se puede borrar' }),
               aviso(fallo.message),
               fallo.detalle ? el('p', { clase: 'nota', texto: fallo.detalle }) : null,
               el('button', { clase: 'boton secundario chico', type: 'button', texto: 'Entendido', onclick: pintar }),
@@ -459,7 +471,7 @@ export function editarCliente({ datos, ir, recargar }) {
 
   const formulario = el('form', { clase: 'tarjeta', novalidate: true }, [
     el('p', { clase: 'antetitulo', texto: c.codigo }),
-    el('h1', { texto: 'Corregir la ficha' }),
+    el('h1', { texto: 'Corregir los datos' }),
     campo({ id: 'nombre', etiqueta: 'Nombre', value: c.nombre }),
     campo({ id: 'apellido', etiqueta: 'Apellido', value: c.apellido }),
     campo({ id: 'cedula', etiqueta: 'Cédula o RUC', value: c.cedula }),
@@ -478,12 +490,15 @@ export function editarCliente({ datos, ir, recargar }) {
     el('div', { clase: 'datos' }, [
       renglonDato('Celular', c.telefono),
     ]),
-    el('p', {
-      clase: 'nota',
-      texto:
-        'El celular no se cambia desde aquí: es con lo que entra a su cuenta y con lo que ' +
-        'el sistema la reconoce. Si de verdad cambió de número, se da de alta la ficha nueva.',
-    }),
+    el('p', { clase: 'nota' }, [
+      document.createTextNode('El celular no se cambia desde aquí.'),
+      ayuda(
+        'Es con lo que el cliente entra a su cuenta y con lo que el sistema lo reconoce en la ' +
+          'próxima venta. Si de verdad cambió de número, se registra como cliente nuevo y se ' +
+          'pasan sus puntos con un ajuste, que queda escrito y él puede leer.',
+        { etiqueta: 'Por qué no se cambia' },
+      ),
+    ]),
     boton,
     el('button', {
       clase: 'boton secundario',

@@ -29,6 +29,7 @@
 
 import { api, aCentavos, comoDolares, comoFecha, comoPuntos } from './api.js';
 import { el, buscador, campo, aviso, alEnviar, rellenar } from './vistas.js';
+import { ayuda } from '../hub/ayuda.js';
 import { selectorDeCumple } from '../hub/cumple.js';
 
 /**
@@ -59,7 +60,7 @@ export function ponerReglas(reglas) {
  * venta y comprueba que el total que enseñó la pantalla es el que guardó la
  * base. Si un día el panel pasa por un empaquetador, esto se borra y se importa.
  */
-function totalesDe(lineas, descuentoCentavos) {
+function totalesDe(lineas, descuentoCentavos, canjeCentavos = 0) {
   let bruto = 0;
   let unidades = 0;
   for (const l of lineas) {
@@ -67,10 +68,26 @@ function totalesDe(lineas, descuentoCentavos) {
     bruto += l.cantidad * l.precioCentavos;
     unidades += l.cantidad;
   }
-  const descuento = Math.min(Math.max(descuentoCentavos || 0, 0), bruto);
-  const subtotal = bruto - descuento;
+
+  // Las rebajas se recortan juntas y no por separado, igual que en el servidor:
+  // un descuento del 60 % y un canje del 60 % pasaban los dos y dejaban la
+  // venta en negativo.
+  const canje = Math.min(Math.max(canjeCentavos || 0, 0), bruto);
+  const descuento = Math.min(Math.max(descuentoCentavos || 0, 0), bruto - canje);
+  const subtotal = bruto - descuento - canje;
   const itbms = Math.floor((subtotal * REGLAS.itbmsPorcentaje + 50) / 100);
-  return { bruto, descuento, subtotal, itbms, total: subtotal + itbms, unidades };
+
+  // `pasa` dice si el servidor va a aceptar esto. La pantalla recorta para no
+  // enseñar un número absurdo mientras se teclea, PERO el botón se bloquea si
+  // lo recortado no es lo que se pidió: enseñar un total que el servidor va a
+  // rechazar es peor que decirlo a tiempo.
+  const pasa =
+    bruto > 0 &&
+    subtotal + itbms > 0 &&
+    descuento === Math.max(descuentoCentavos || 0, 0) &&
+    canje === Math.max(canjeCentavos || 0, 0);
+
+  return { bruto, descuento, canje, subtotal, itbms, total: subtotal + itbms, unidades, pasa };
 }
 
 // ---------------------------------------------------------------------------
@@ -86,8 +103,10 @@ export function nuevaVenta({ ir, encendido, prefijado = null }) {
   // ya estaba, que es justo lo que crea fichas duplicadas.
   let cliente = prefijado ? { modo: 'elegido', ...prefijado } : { modo: 'ninguno' };
 
-  const lineas = [{ descripcion: '', cantidad: 1, precioCentavos: 0 }];
+  const lineas = [{ descripcion: '', cantidad: 1, precioCentavos: 0, tipo: 'articulo' }];
   let descuento = 0;
+  /** Los premios que el cliente trae, ya comprobados contra el servidor. */
+  let premios = [];
 
   const cajaCliente = el('div', { clase: 'tarjeta' });
   const cajaLineas = el('div', { clase: 'tarjeta' });
@@ -150,7 +169,15 @@ export function nuevaVenta({ ir, encendido, prefijado = null }) {
           pintarCliente();
         },
       }),
-      el('p', { clase: 'nota', texto: 'Si nunca ha comprado aquí, no va a aparecer.' }),
+      el('p', { clase: 'nota' }, [
+        document.createTextNode('Si nunca ha comprado aquí, no va a aparecer.'),
+        ayuda(
+          'El buscador encuentra por nombre, por cualquier tramo del celular o por el código ' +
+            'del comprobante. Si aun así no sale, es su primera compra: usa el botón de abajo ' +
+            'y sus datos quedan guardados para siempre.',
+          { etiqueta: 'Cómo buscar' },
+        ),
+      ]),
       el('button', {
         clase: 'boton secundario',
         type: 'button',
@@ -203,9 +230,25 @@ export function nuevaVenta({ ir, encendido, prefijado = null }) {
         pintarTotales();
       });
 
+      // Qué clase de renglón es. Los tres van al mismo ITBMS —el flete y el
+      // armado de lo que uno vende son cargos accesorios y entran en la base—
+      // pero el comprobante lo dice y el reporte los puede sumar aparte.
+      const clase = el('select', { clase: 'renglon-tipo', 'aria-label': `Qué es el renglón ${i + 1}` });
+      for (const [v, t] of [['articulo', 'Artículo'], ['flete', 'Entrega'], ['armado', 'Armado']]) {
+        const o = document.createElement('option');
+        o.value = v;
+        o.textContent = t;
+        if ((linea.tipo ?? 'articulo') === v) o.selected = true;
+        clase.append(o);
+      }
+      clase.addEventListener('change', () => {
+        linea.tipo = clase.value;
+      });
+
       return el('div', { clase: 'renglon-venta' }, [
         desc,
         el('div', { clase: 'renglon-cifras' }, [
+          clase,
           // «Cant.» escrito y no un «×». El aspa de multiplicar y el aspa de
           // quitar son el mismo signo, y en el mismo renglón: una dice cuántos
           // y la otra borra la línea. Con prisa eso se pulsa mal.
@@ -232,14 +275,22 @@ export function nuevaVenta({ ir, encendido, prefijado = null }) {
 
     rellenar(cajaLineas, 
       el('h2', { texto: 'Qué se vendió' }),
-      el('p', { clase: 'nota', texto: `Los precios van SIN ITBMS. Abajo se suma el ${REGLAS.itbmsPorcentaje} %.` }),
+      el('p', { clase: 'nota' }, [
+        document.createTextNode(`Precios sin ITBMS. Abajo se suma el ${REGLAS.itbmsPorcentaje} %.`),
+        ayuda(
+          `Se teclea el precio de lista, sin impuesto, como en cualquier factura de Panamá. ` +
+            `El ${REGLAS.itbmsPorcentaje} % se suma solo al final y se ve antes de cobrar, ` +
+            `así que no hay que hacer la cuenta de cabeza.`,
+          { etiqueta: 'Por qué sin ITBMS' },
+        ),
+      ]),
       ...filas,
       el('button', {
         clase: 'boton secundario chico',
         type: 'button',
         texto: '+ Otro artículo',
         onclick: () => {
-          lineas.push({ descripcion: '', cantidad: 1, precioCentavos: 0 });
+          lineas.push({ descripcion: '', cantidad: 1, precioCentavos: 0, tipo: 'articulo' });
           pintarLineas();
         },
       }),
@@ -249,7 +300,7 @@ export function nuevaVenta({ ir, encendido, prefijado = null }) {
   // --- Los totales, a cada tecla ------------------------------------------
 
   function pintarTotales() {
-    const t = totalesDe(lineas, descuento);
+    const t = totalesDe(lineas, descuento, premios.reduce((n, p) => n + p.valorCentavos, 0));
 
     const entradaDescuento = el('input', {
       type: 'text',
@@ -277,22 +328,46 @@ export function nuevaVenta({ ir, encendido, prefijado = null }) {
         el('label', { clase: 'total-que', for: 'descuento', texto: 'Descuento' }),
         el('div', { clase: 'total-entrada' }, [el('span', { texto: '$' }), entradaDescuento]),
       ]),
-      t.descuento ? renglonTotal('Base', comoDolares(t.subtotal)) : null,
+      ...premios.map((p) =>
+        el('div', { clase: 'total-fila' }, [
+          el('span', { clase: 'total-que', texto: `${p.premio} · ${p.codigo}` }),
+          el('div', { clase: 'total-entrada' }, [
+            el('span', { clase: 'total-cuanto', texto: `− ${comoDolares(p.valorCentavos)}` }),
+            el('button', {
+              clase: 'quitar',
+              type: 'button',
+              texto: '✕',
+              'aria-label': `Quitar el premio ${p.codigo}`,
+              onclick: () => {
+                premios = premios.filter((x) => x.codigo !== p.codigo);
+                pintarTotales();
+              },
+            }),
+          ]),
+        ]),
+      ),
+      t.descuento || t.canje ? renglonTotal('Base gravada', comoDolares(t.subtotal)) : null,
       renglonTotal(`ITBMS ${REGLAS.itbmsPorcentaje} %`, comoDolares(t.itbms)),
       el('div', { clase: 'total-fila grande' }, [
         el('span', { clase: 'total-que', texto: 'Total a cobrar' }),
         el('span', { clase: 'total-cuanto', texto: comoDolares(t.total) }),
       ]),
-      t.total > 0 && encendido?.compras
+      !t.pasa && t.bruto > 0
+        ? aviso('El descuento y los puntos juntos son más que la venta.')
+        : null,
+      t.pasa && t.total > 0 && encendido?.compras
         ? el('p', { clase: 'puntos-anticipo', texto: `Le suma ${comoPuntos(puntosDe(t.total))} puntos.` })
         : null,
     );
+
+    // El botón sigue al cálculo: si el servidor va a rechazarlo, no se ofrece.
+    boton.disabled = !t.pasa;
   }
 
   // --- Emitir -------------------------------------------------------------
 
-  const boton = el('button', { clase: 'boton', type: 'submit', texto: 'Emitir el comprobante' });
-  boton.dataset.texto = 'Emitir el comprobante';
+  const boton = el('button', { clase: 'boton', type: 'submit', texto: 'Guardar y ver el comprobante' });
+  boton.dataset.texto = 'Guardar y ver el comprobante';
 
   const notas = el('input', {
     id: 'notas',
@@ -305,14 +380,101 @@ export function nuevaVenta({ ir, encendido, prefijado = null }) {
     cajaEmitir,
   ]);
 
+  // --- Los premios que trae el cliente -----------------------------------
+
+  const cajaPremios = el('div', { clase: 'tarjeta' });
+
+  function pintarPremios() {
+    const entrada = el('input', {
+      id: 'premio',
+      type: 'text',
+      inputmode: 'latin',
+      autocomplete: 'off',
+      placeholder: 'Código del premio',
+      autocapitalize: 'characters',
+    });
+    entrada.addEventListener('input', () => {
+      const donde = entrada.selectionStart;
+      entrada.value = entrada.value.toUpperCase();
+      entrada.setSelectionRange(donde, donde);
+    });
+
+    const agregar = el('button', { clase: 'boton secundario chico', type: 'button', texto: 'Aplicar' });
+
+    agregar.addEventListener('click', async () => {
+      const codigo = entrada.value.trim().toUpperCase();
+      if (!codigo) return;
+      if (cliente.modo !== 'elegido') {
+        return rellenar(cajaPremios, ...hijosPremios(aviso('Primero elige al cliente de la venta.')));
+      }
+      if (premios.some((p) => p.codigo === codigo)) {
+        return rellenar(cajaPremios, ...hijosPremios(aviso('Ese premio ya está aplicado.')));
+      }
+      agregar.disabled = true;
+      try {
+        const canje = await api.verCanje(codigo);
+        // Se comprueba AQUÍ además de en el servidor para que la vendedora se
+        // entere antes de emitir, no después. El servidor lo vuelve a mirar:
+        // esta comprobación es cortesía, no seguridad.
+        if (canje.socioCodigo !== cliente.codigo) {
+          throw new Error('Ese premio es de otro cliente.');
+        }
+        if (canje.estado !== 'solicitado') {
+          throw new Error(
+            canje.estado === 'entregado' ? 'Ese premio ya se entregó.' : 'Ese premio ya no vale.',
+          );
+        }
+        premios.push({
+          codigo: canje.codigo,
+          premio: canje.premioNombre,
+          valorCentavos: canje.valorCentavos,
+        });
+        pintarPremios();
+        pintarTotales();
+      } catch (fallo) {
+        rellenar(cajaPremios, ...hijosPremios(aviso(fallo.mensaje ?? fallo.message)));
+      } finally {
+        agregar.disabled = false;
+      }
+    });
+
+    const hijosPremios = (extra) => [
+      el('h2', {}, [
+        document.createTextNode('¿Trae un premio?'),
+        ayuda(
+          'Si el cliente canjeó puntos por un descuento, teclea aquí el código que trae. ' +
+            'El sistema comprueba que sea suyo, que no esté usado y cuánto vale — nadie ' +
+            'teclea el importe a mano. Queda anotado en el comprobante con su código.',
+          { etiqueta: 'Qué es un premio' },
+        ),
+      ]),
+      el('div', { clase: 'premio-fila' }, [entrada, agregar]),
+      premios.length
+        ? el('p', {
+            clase: 'nota',
+            texto: `Aplicados: ${premios.map((p) => p.codigo).join(', ')}.`,
+          })
+        : null,
+      extra,
+    ];
+
+    rellenar(cajaPremios, ...hijosPremios(null));
+  }
+
   rellenar(cajaEmitir, 
     el('label', { clase: 'campo', for: 'factura' }, [
       el('span', { clase: 'etiqueta', texto: 'Número de la factura fiscal' }),
       entradaFactura,
-      el('span', {
-        clase: 'nota',
-        texto: 'El que imprimió la caja. Este comprobante la acompaña, no la sustituye.',
-      }),
+      el('span', { clase: 'nota' }, [
+        document.createTextNode('El número que imprimió la caja.'),
+        ayuda(
+          'La factura con valor ante la DGI es la que emite el equipo fiscal de la tienda. ' +
+            'Este comprobante la acompaña: guarda qué se vendió y a quién, y le dice al cliente ' +
+            'cuántos puntos ganó. Por eso el número es obligatorio, y por eso no se puede cargar ' +
+            'la misma factura dos veces.',
+          { etiqueta: 'Por qué se pide la factura' },
+        ),
+      ]),
     ]),
     el('label', { clase: 'campo', for: 'notas' }, [
       el('span', { clase: 'etiqueta', texto: 'Nota (opcional)' }),
@@ -336,6 +498,7 @@ export function nuevaVenta({ ir, encendido, prefijado = null }) {
         precioCentavos: l.precioCentavos,
       })),
       descuentoCentavos: descuento,
+      canjes: premios.map((p) => p.codigo),
       notas: notas.value,
     });
 
@@ -344,12 +507,14 @@ export function nuevaVenta({ ir, encendido, prefijado = null }) {
 
   pintarCliente();
   pintarLineas();
+  pintarPremios();
   pintarTotales();
 
   rellenar(pantalla, 
     el('h1', { texto: 'Nueva venta' }),
     cajaCliente,
     cajaLineas,
+    cajaPremios,
     cajaTotales,
     formulario,
     el('button', { clase: 'boton secundario', type: 'button', texto: 'Volver', onclick: () => ir('#/') }),
@@ -468,8 +633,28 @@ export function comprobante({ datos, ir, admin }) {
       ? el('p', { clase: 'papel-anulada', texto: `ANULADO · ${datos.anuladaMotivo}` })
       : null,
 
+    // QUÉ ES ESTE PAPEL, ARRIBA Y AL MISMO CUERPO QUE EL RESTO.
+    //
+    // Estaba al pie, a 12px y en gris: exactamente la letra pequeña que el
+    // comentario de antes juraba no ser. Un documento que aclara qué NO es lo
+    // dice donde se lee primero, no debajo de los totales.
+    //
+    // Y ahora dice lo que de verdad hacía falta: que no sirve para sustentar
+    // crédito fiscal ni gasto. Sin esa frase, un cliente empresa podía intentar
+    // usar este papel como si fuera la factura.
+    el('p', { clase: 'papel-legal' }, [
+      el('b', { texto: 'No es una factura fiscal.' }),
+      document.createTextNode(
+        ` No sustituye a la factura ni sirve para sustentar crédito fiscal de ITBMS ni ` +
+          `gasto deducible. La factura fiscal de esta compra es la N.º ${d.facturaFiscal}.`,
+      ),
+    ]),
+
     el('div', { clase: 'papel-datos' }, [
-      dato('Fecha', comoFecha(`${d.fecha}T12:00:00Z`)),
+      // Fecha Y HORA. La hora es lo que desempata dos ventas del mismo día al
+      // mismo cliente cuando alguien cruza este papel contra el reporte de
+      // caja o contra el voucher de una tarjeta.
+      dato('Fecha', `${comoFecha(`${d.fecha}T12:00:00Z`)}, ${horaDe(d.emitidaEn)}`),
       dato('Factura fiscal', d.facturaFiscal),
       dato('Atendió', d.vendedora.split('@')[0]),
     ]),
@@ -496,9 +681,26 @@ export function comprobante({ datos, ir, admin }) {
     ]),
 
     el('div', { clase: 'papel-totales' }, [
-      renglonTotal('Subtotal', comoDolares(d.totales.brutoCentavos)),
+      // EL ORDEN IMPORTA Y LA BASE GRAVADA NO PUEDE FALTAR.
+      //
+      // Antes esto imprimía «Subtotal» (el bruto), «Descuento», «ITBMS» y
+      // «Total», y con descuento el impuesto no se podía comprobar mirando el
+      // papel: $1,000 − $100 con 7 % daba $63.00, que no es el 7 % de $1,000 ni
+      // de $963. Faltaba la base de $900, que es sobre la que se calculó.
+      //
+      // Además «Subtotal» en una factura panameña es la base gravada, no el
+      // importe de antes del descuento: llamarlo así invertía la convención.
+      renglonTotal('Artículos', comoDolares(d.totales.brutoCentavos)),
       d.totales.descuentoCentavos
         ? renglonTotal('Descuento', `− ${comoDolares(d.totales.descuentoCentavos)}`)
+        : null,
+      // Cada premio con su código. Que se vea CUÁL se usó es lo que permite
+      // demostrar después que ese descuento fue un canje y no una rebaja.
+      ...(d.canjes ?? []).map((c) =>
+        renglonTotal(`${c.premio} · ${c.codigo}`, `− ${comoDolares(c.valorCentavos)}`),
+      ),
+      d.totales.descuentoCentavos || d.totales.canjeCentavos
+        ? renglonTotal('Base gravada', comoDolares(d.totales.subtotalCentavos))
         : null,
       renglonTotal(`ITBMS ${d.itbmsPorcentaje} %`, comoDolares(d.totales.itbmsCentavos)),
       el('div', { clase: 'total-fila grande' }, [
@@ -520,14 +722,6 @@ export function comprobante({ datos, ir, admin }) {
         ])
       : null,
 
-    // La línea que evita el problema con la DGI. No va en letra pequeña al pie
-    // por casualidad: va donde va en cualquier documento que aclara qué es.
-    el('p', {
-      clase: 'papel-legal',
-      texto:
-        'Este documento no es una factura fiscal. La factura fiscal de esta compra es la ' +
-        `N.º ${d.facturaFiscal}, emitida por el equipo fiscal de D’CASA Panamá.`,
-    }),
     el('p', { clase: 'papel-pie', texto: 'D’CASA Panamá · La Chorrera, frente al parque Libertadores' }),
   ]);
 
@@ -547,13 +741,29 @@ export function comprobante({ datos, ir, admin }) {
     el('button', {
       clase: 'boton secundario',
       type: 'button',
-      texto: 'Ver la ficha del cliente',
+      texto: 'Ver al cliente',
       onclick: () => ir(`#/cliente/${d.cliente.codigo}`),
     }),
     !datos.anulada && admin ? botonAnular(datos.numero, ir) : null,
   ]);
 
   return el('div', {}, [papel, acciones]);
+}
+
+/**
+ * `2026-09-22T23:40:11Z` → `6:40 p. m.`, en hora de Panamá.
+ *
+ * Se resta a mano y no con `toLocaleTimeString('es-PA')` porque el navegador de
+ * la vendedora usa SU zona horaria, no la de la tienda: un teléfono con la zona
+ * mal puesta imprimiría una hora que no es la del mostrador. Panamá está
+ * siempre en UTC−5 y no cambia de hora en todo el año.
+ */
+function horaDe(iso) {
+  const enPanama = new Date(new Date(iso).getTime() - 5 * 60 * 60 * 1000);
+  const h = enPanama.getUTCHours();
+  const m = String(enPanama.getUTCMinutes()).padStart(2, '0');
+  const doce = h % 12 === 0 ? 12 : h % 12;
+  return `${doce}:${m} ${h < 12 ? 'a. m.' : 'p. m.'}`;
 }
 
 function dato(que, cuanto) {

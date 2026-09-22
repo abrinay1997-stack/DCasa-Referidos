@@ -20,7 +20,7 @@
  */
 
 import { ErrorPeticion, cuerpoJson } from './http';
-import { anioEnPanama, diaYMesEnPanama } from './reloj';
+import { anioEnPanama, diaEnPanama, diaYMesEnPanama } from './reloj';
 import { REGLAS } from './reglas';
 import { ALFABETO_CODIGO } from '../compartido/socios';
 import { sentenciaAsiento } from './movimientos';
@@ -338,7 +338,7 @@ export async function entregar(
     throw new ErrorPeticion(
       409,
       'repetida',
-      `Ese premio ya se entregó el ${canje.entregadoEn?.slice(0, 10)}.`,
+      `Ese premio ya se entregó el ${canje.entregadoEn ? diaEnPanama(canje.entregadoEn) : ''}.`,
     );
   }
   if (canje.estado !== 'solicitado') {
@@ -563,4 +563,111 @@ export async function felicitarALosDeHoy(base: D1Database): Promise<number> {
   );
 
   return socios.length;
+}
+
+/** Un premio cobrado dentro de una venta, listo para descontar. */
+export interface CanjeCobrado {
+  codigo: string;
+  premio: string;
+  valorCentavos: number;
+  /** La sentencia que lo marca entregado. Va en el batch de la venta. */
+  sentencia: D1PreparedStatement;
+}
+
+/**
+ * Cobra los códigos de premio que el cliente trae a una venta.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUÉ ESTO NO PUEDE SER «LA VENDEDORA TECLEA EL DESCUENTO»
+ *
+ * Que era como funcionaba. El socio canjeaba «$10 de descuento», le salía un
+ * código, lo enseñaba, y alguien escribía 10.00 a mano en el campo de
+ * descuento. Con eso, el mismo código valía en dos ventas, se podía teclear un
+ * importe distinto del que valía el premio, y el historial no distinguía un
+ * canje de una rebaja de mostrador.
+ *
+ * Aquí el importe lo pone el premio, no quien teclea; el código se marca
+ * entregado en el MISMO batch que la venta; y el `WHERE estado = 'solicitado'`
+ * de esa sentencia es lo que impide que dos vendedoras lo cobren a la vez —la
+ * segunda no cambia ninguna fila y la venta entera se cae, que es lo correcto:
+ * mejor repetir la venta que cobrar dos veces el mismo premio.
+ *
+ * ---------------------------------------------------------------------------
+ * EL PREMIO TIENE QUE SER DEL CLIENTE DE LA VENTA
+ *
+ * Sin esa comprobación, un código de otra persona —que se reparte en un papel,
+ * y que alguien puede leer por encima del hombro— serviría para rebajar
+ * cualquier venta. Los puntos ya salieron del saldo de su dueño al pedirlo, así
+ * que el fraude no descuadra nada visible: simplemente el descuento se lo lleva
+ * quien no lo ganó.
+ */
+export async function cobrarEnVenta(
+  base: D1Database,
+  codigos: string[],
+  socioCodigo: string,
+  numeroDeLaVenta: string,
+  ahora: string,
+  quien: string,
+): Promise<CanjeCobrado[]> {
+  const limpios = [...new Set(codigos.map((c) => (c ?? '').trim().toUpperCase()).filter(Boolean))];
+  if (!limpios.length) return [];
+
+  const cobrados: CanjeCobrado[] = [];
+
+  for (const codigo of limpios) {
+    const canje = await porCodigo(base, codigo);
+
+    if (canje.socioCodigo !== socioCodigo) {
+      throw new ErrorPeticion(
+        403,
+        'sin-permiso',
+        `El premio ${codigo} es de otro cliente. Solo lo puede usar quien lo ganó.`,
+      );
+    }
+    if (canje.estado === 'entregado') {
+      throw new ErrorPeticion(409, 'repetida', `El premio ${codigo} ya se entregó.`);
+    }
+    if (canje.estado !== 'solicitado') {
+      throw new ErrorPeticion(
+        409,
+        'repetida',
+        canje.estado === 'vencido'
+          ? `El premio ${codigo} venció y sus puntos ya volvieron a la cuenta.`
+          : `El premio ${codigo} se canceló.`,
+      );
+    }
+
+    cobrados.push({
+      codigo: canje.codigo,
+      premio: canje.premioNombre,
+      valorCentavos: canje.valorCentavos,
+      sentencia: sellarConLaVenta(base, canje.codigo, numeroDeLaVenta, ahora, quien),
+    });
+  }
+
+  return cobrados;
+}
+
+/**
+ * Marca un premio entregado dentro de una venta.
+ *
+ * El `WHERE estado = 'solicitado'` es lo que impide cobrarlo dos veces: si otra
+ * vendedora se adelantó, esta sentencia no cambia ninguna fila. Va en el batch
+ * de la venta, así que D1 deshace la venta entera — que es lo correcto: mejor
+ * repetir la venta que regalar el premio dos veces.
+ */
+export function sellarConLaVenta(
+  base: D1Database,
+  codigo: string,
+  numero: string,
+  ahora: string,
+  quien: string,
+): D1PreparedStatement {
+  return base
+    .prepare(
+      `UPDATE canjes SET estado = 'entregado', entregado_en = ?, entregado_por = ?,
+              venta_numero = ?
+        WHERE codigo = ? AND estado = 'solicitado'`,
+    )
+    .bind(ahora, quien, numero, codigo);
 }

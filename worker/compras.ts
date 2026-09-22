@@ -13,6 +13,7 @@ import { baseDeCompra, puntosDeCompra } from '../compartido/puntos';
 import { porCodigo } from './socios';
 import * as referidos from './referidos';
 import { facturaNormal } from '../compartido/compras';
+import { diaEnPanama } from './reloj';
 import { choco } from '../compartido/choques';
 
 export interface Calculo {
@@ -177,6 +178,7 @@ export async function registrar(
     puntos,
     ahora,
     vendedor,
+    id,
   );
   sentencias.push(...referido.sentencias);
 
@@ -207,7 +209,7 @@ export async function registrar(
         409,
         'repetida',
         'Esa factura ya se cargó. Si es otra venta, revisa el número.',
-        previa ? `Ya está en ${previa.socio_codigo}, el ${previa.registrada_en.slice(0, 10)}.` : undefined,
+        previa ? `Ya está en ${previa.socio_codigo}, el ${diaEnPanama(previa.registrada_en)}.` : undefined,
       );
     }
     throw error;
@@ -290,6 +292,19 @@ export async function anular(
       );
     }
   }
+
+  // El referido que esta compra pudo haber disparado, por lo mismo que en
+  // `ventas.anular`. Las dos anulaciones tienen que deshacer lo mismo: una
+  // compra cargada a mano paga el referido igual que una venta.
+  sentencias.push(
+    ...(await referidos.deshacerPorCompra(
+      base,
+      compra.id,
+      compra.socio_codigo,
+      `factura ${compra.id.slice(0, 8)}`,
+      quien,
+    )),
+  );
 
   await base.batch(sentencias);
   return { anulada: id, puntosDevueltos: compra.puntos };

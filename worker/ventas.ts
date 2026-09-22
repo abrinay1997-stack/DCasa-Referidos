@@ -34,8 +34,9 @@ import { choco } from '../compartido/choques';
 import { formatoNumeroVenta, totalesDe, VentaInvalida } from '../compartido/ventas';
 import type { DatosVenta, LineaVenta, TotalesVenta } from '../compartido/ventas';
 import * as referidos from './referidos';
+import * as canjes from './canjes';
 import { fichaDeVenta, sentenciasDeFichaNueva, type ClienteDeVenta } from './clientes';
-import { hoyEnPanama } from './reloj';
+import { diaEnPanama, hoyEnPanama } from './reloj';
 
 /** Lo que se guarda dentro de `ventas.documento`, y lo que se reimprime. */
 export interface DocumentoVenta {
@@ -65,6 +66,8 @@ export interface DocumentoVenta {
   lineas: LineaVenta[];
   totales: TotalesVenta;
   itbmsPorcentaje: number;
+  /** Los premios que pagaron parte de esta venta. */
+  canjes: { codigo: string; premio: string; valorCentavos: number }[];
   notas: string;
   /** Cuántos puntos dio, y cuánto saldo le quedó. Para imprimirlo debajo. */
   puntos: number;
@@ -128,6 +131,13 @@ interface CuerpoEmitir {
   facturaFiscal?: string;
   lineas?: LineaVenta[];
   descuentoCentavos?: number;
+  /**
+   * Los códigos de premio que el cliente trae en la mano.
+   *
+   * Viene el CÓDIGO, nunca el importe: lo que vale cada premio lo pone el
+   * catálogo, no quien teclea. Ver `canjes.cobrarEnVenta`.
+   */
+  canjes?: string[];
   notas?: string;
 }
 
@@ -158,22 +168,7 @@ export async function emitir(
   }
   const normal = facturaNormal(facturaFiscal);
 
-  // Los totales, con la MISMA función que la pantalla usó para enseñarlos.
-  const venta: DatosVenta = {
-    lineas: Array.isArray(datos.lineas) ? datos.lineas : [],
-    descuentoCentavos: datos.descuentoCentavos ?? 0,
-    notas: (datos.notas ?? '').trim(),
-  };
-
-  let totales: TotalesVenta;
-  try {
-    totales = totalesDe(venta, { itbmsPorcentaje: REGLAS.acumulacion.itbmsPorcentaje });
-  } catch (error) {
-    if (error instanceof VentaInvalida) {
-      throw new ErrorPeticion(400, 'invalida', error.message, error.campo);
-    }
-    throw error;
-  }
+  const pedidos = Array.isArray(datos.canjes) ? datos.canjes : [];
 
   // La factura repetida se mira ANTES de gastar un número. Es el rechazo más
   // probable de todos —la vendedora teclea el número de la venta anterior— y no
@@ -187,7 +182,7 @@ export async function emitir(
       409,
       'repetida',
       'Esa factura ya tiene comprobante. Si es otra venta, revisa el número.',
-      `Es el ${repetida.numero}, del ${repetida.emitida_en.slice(0, 10)}.`,
+      `Es el ${repetida.numero}, del ${diaEnPanama(repetida.emitida_en)}.`,
     );
   }
 
@@ -202,6 +197,38 @@ export async function emitir(
     );
   }
 
+  const ahora = new Date().toISOString();
+  const fecha = hoyEnPanama();
+  const compraId = crypto.randomUUID();
+
+  // El número se gasta AQUÍ y no al final: los premios que se cobran abajo lo
+  // llevan escrito, y una venta sin número no puede sellarlos. Todo lo que se
+  // podía rechazar sin gastar número —la factura repetida, el cliente, las
+  // líneas— ya se rechazó antes.
+  const numero = await siguienteNumero(base, fecha);
+
+  // Los premios que el cliente trae. El importe lo pone el catálogo.
+  const cobrados = await canjes.cobrarEnVenta(base, pedidos, ficha.codigo, numero, ahora, vendedora);
+  const canjeCentavos = cobrados.reduce((suma, c) => suma + c.valorCentavos, 0);
+
+  // Los totales, con la MISMA función que la pantalla usó para enseñarlos.
+  const venta: DatosVenta = {
+    lineas: Array.isArray(datos.lineas) ? datos.lineas : [],
+    descuentoCentavos: datos.descuentoCentavos ?? 0,
+    canjeCentavos,
+    notas: (datos.notas ?? '').trim(),
+  };
+
+  let totales: TotalesVenta;
+  try {
+    totales = totalesDe(venta, { itbmsPorcentaje: REGLAS.acumulacion.itbmsPorcentaje });
+  } catch (error) {
+    if (error instanceof VentaInvalida) {
+      throw new ErrorPeticion(400, 'invalida', error.message, error.campo);
+    }
+    throw error;
+  }
+
   let baseCentavos: number;
   let puntos: number;
   try {
@@ -210,10 +237,6 @@ export async function emitir(
   } catch (error) {
     return comoRespuesta(error);
   }
-
-  const ahora = new Date().toISOString();
-  const fecha = hoyEnPanama();
-  const compraId = crypto.randomUUID();
 
   const sentencias: D1PreparedStatement[] = [];
 
@@ -274,6 +297,7 @@ export async function emitir(
     puntos,
     ahora,
     vendedora,
+    compraId,
   );
   sentencias.push(...referido.sentencias);
 
@@ -282,8 +306,6 @@ export async function emitir(
   const saldoAntes = await saldoDe(base, ficha.codigo);
   const saldoDespues =
     saldoAntes + puntos + (referido.pagado && referido.pagado.alAhijado ? referido.pagado.alAhijado : 0);
-
-  const numero = await siguienteNumero(base, fecha);
 
   const documento: DocumentoVenta = {
     numero,
@@ -307,6 +329,13 @@ export async function emitir(
     })),
     totales,
     itbmsPorcentaje: REGLAS.acumulacion.itbmsPorcentaje,
+    // Qué premios pagaron parte de esta venta. Va en el documento para que el
+    // comprobante reimpreso los siga diciendo, aunque el catálogo cambie.
+    canjes: cobrados.map((c) => ({
+      codigo: c.codigo,
+      premio: c.premio,
+      valorCentavos: c.valorCentavos,
+    })),
     notas: venta.notas,
     puntos,
     saldoDespues,
@@ -318,8 +347,8 @@ export async function emitir(
         `INSERT INTO ventas
            (numero, socio_codigo, factura_fiscal, factura_normal, emitida_en, vendedora,
             subtotal_centavos, itbms_centavos, total_centavos, unidades,
-            compra_id, puntos, documento)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            descuento_centavos, canje_centavos, compra_id, puntos, documento)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         numero,
@@ -332,11 +361,19 @@ export async function emitir(
         totales.itbmsCentavos,
         totales.totalCentavos,
         totales.unidades,
+        totales.descuentoCentavos,
+        totales.canjeCentavos,
         compraId,
         puntos,
         JSON.stringify(documento),
       ),
   );
+
+  // Los premios se marcan entregados EN ESTE MISMO BATCH. Si uno ya lo cobró
+  // otra vendedora, su `WHERE estado = 'solicitado'` no cambia nada y D1
+  // deshace la venta entera: mejor repetir la venta que regalar el premio dos
+  // veces.
+  sentencias.push(...cobrados.map((c) => c.sentencia));
 
   try {
     await base.batch(sentencias);
@@ -463,7 +500,8 @@ export async function listar(
 
   const ventas = (results ?? []).map((f) => ({
     numero: f.numero as string,
-    fecha: (f.emitida_en as string).slice(0, 10),
+    // En hora de Panamá, para que el historial diga el mismo día que el papel.
+    fecha: diaEnPanama(f.emitida_en as string),
     emitidaEn: f.emitida_en as string,
     vendedora: f.vendedora as string,
     facturaFiscal: f.factura_fiscal as string,
@@ -592,6 +630,19 @@ export async function anular(
         );
       }
     }
+
+    // Y el referido que esta venta pudo haber disparado. Ver
+    // `referidos.deshacerPorCompra`: sin esto, anular dejaba $7.50 en puntos
+    // regalados y quemaba el referido real del cliente para siempre.
+    sentencias.push(
+      ...(await referidos.deshacerPorCompra(
+        base,
+        venta.compra_id,
+        venta.socio_codigo,
+        `comprobante ${venta.numero}`,
+        quien,
+      )),
+    );
   }
 
   await base.batch(sentencias);

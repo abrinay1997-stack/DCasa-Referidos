@@ -300,6 +300,80 @@
   .cuando { font-size: 13px; color: var(--apagado); }
   .motivo { font-size: 14px; background: var(--hueso); border-radius: 8px; padding: 8px 11px; margin: 8px 0 0; }
   .nota-grande h2 { margin-bottom: 8px; }
+  /* El recordatorio de configuración: un renglón discreto al pie, no una
+     tarjeta que compite con la lista de clientes. */
+  .nota.recordatorio { margin-top: 18px; text-align: center; }
+
+  /* ---------------------------------------------------------------------
+     LA AYUDA EMERGENTE
+     Ver `hub/ayuda.js` para el porqué de que no sea un `title`.
+     --------------------------------------------------------------------- */
+
+  .ayuda { position: relative; display: inline-block; vertical-align: middle; }
+
+  /* El círculo se ve de 20px, pero se toca en 44. El área táctil la pone el
+     ::after, que es transparente y se sale del círculo: agrandar el círculo de
+     verdad convertiría un signo de ayuda en el elemento más gordo del
+     renglón. 44px es el mínimo de la pauta de accesibilidad y el ancho real de
+     la yema de un pulgar. */
+  .ayuda-boton {
+    position: relative;
+    display: block;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 1px solid var(--borde);
+    border-radius: 50%;
+    background: var(--blanco);
+    color: var(--apagado);
+    font: inherit;
+    font-size: 12px;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+  }
+  .ayuda-boton::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  .ayuda-boton:hover, .ayuda-boton[aria-expanded='true'] {
+    border-color: var(--azul);
+    color: var(--azul);
+  }
+  .ayuda-boton:focus-visible { outline: 3px solid var(--azul); outline-offset: 2px; }
+
+  .ayuda-globo {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 8px);
+    /* Anclado a la IZQUIERDA del «?» y limitado al ancho de la ventana menos
+       los márgenes: a 360px, un globo centrado se sale por un lado u otro
+       según dónde caiga el signo. */
+    left: 0;
+    width: max-content;
+    max-width: min(280px, calc(100vw - 48px));
+    padding: 11px 13px;
+    border-radius: 10px;
+    background: var(--tinta);
+    color: var(--blanco);
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.45;
+    letter-spacing: 0;
+    text-transform: none;
+    text-align: left;
+    white-space: normal;
+    box-shadow: 0 8px 24px rgba(20, 28, 46, 0.22);
+  }
+  /* Si el globo se sale por un lado, lo empuja `acomodar()` en hub/ayuda.js,
+     midiendo al abrir. Aquí no se adivina: la versión anterior lo intentaba con
+     `:nth-last-child` y mandaba globos fuera de la pantalla. */
 
   /* ---------------------------------------------------------------------
      LA FACTURERÍA
@@ -362,6 +436,24 @@
     font-family: Oswald, Inter, sans-serif; font-size: 15px;
   }
 
+  .premio-fila { display: flex; gap: 8px; align-items: center; }
+  .premio-fila input {
+    flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 11px 12px;
+    border: 1px solid var(--borde); border-radius: 10px;
+    background: var(--blanco); color: var(--tinta); letter-spacing: 0.06em;
+  }
+  .premio-fila input:focus { outline: 3px solid var(--azul); outline-offset: 1px; border-color: var(--azul); }
+  .premio-fila .boton { flex: none; margin: 0; width: auto; }
+
+  /* El tipo de renglón. Estrecho a propósito: lo normal es «Artículo» y no
+     debe robarle sitio a la cantidad ni al precio. */
+  .renglon-tipo {
+    flex: none; width: 96px; font: inherit; font-size: 14px; padding: 10px 6px;
+    border: 1px solid var(--borde); border-radius: 10px;
+    background: var(--blanco); color: var(--apagado); appearance: none; text-align: center;
+  }
+  .renglon-tipo:focus { outline: 3px solid var(--azul); outline-offset: 1px; border-color: var(--azul); }
+
   .elegido { padding: 12px 0; }
   .elegido .nombre { display: block; font-size: 18px; }
   .elegido .meta { display: block; font-size: 14px; color: var(--apagado); font-variant-numeric: tabular-nums; }
@@ -414,7 +506,19 @@
   .papel-puntos-saldo { display: block; font-size: 15px; margin-top: 3px; }
   .papel-puntos-pie { display: block; font-size: 13px; margin-top: 6px; opacity: 0.85; }
 
-  .papel-legal { margin: 18px 0 0; font-size: 12px; color: var(--apagado); line-height: 1.5; }
+  /* Arriba, al mismo cuerpo que el documento y con un borde que la separa. No
+     es letra pequeña: es la línea que dice qué es este papel, y va donde se lee
+     primero. Antes estaba al pie a 12px en gris. */
+  .papel-legal {
+    margin: 16px 0 0;
+    padding: 10px 12px;
+    border-left: 3px solid var(--azul);
+    background: var(--hueso);
+    border-radius: 0 8px 8px 0;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .papel-legal b { color: var(--azul); }
   .papel-pie { margin: 8px 0 0; font-size: 12px; color: var(--apagado); }
 
   /* Al imprimir se va todo menos el papel: el cabecero azul, los botones y el
@@ -425,7 +529,7 @@
     body { background: #FFFFFF; font-size: 13px; }
     main { max-width: none; padding: 0; }
     .papel { border: 0; border-radius: 0; padding: 0; }
-    .papel-cliente, .papel-puntos, .papel-nota { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .papel-cliente, .papel-puntos, .papel-nota, .papel-legal { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 
   /* ---------------------------------------------------------------------

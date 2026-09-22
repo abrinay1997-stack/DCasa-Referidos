@@ -29,6 +29,7 @@ const linea = (cambios: Partial<LineaVenta> = {}): LineaVenta => ({
 const venta = (cambios: Partial<DatosVenta> = {}): DatosVenta => ({
   lineas: [linea()],
   descuentoCentavos: 0,
+  canjeCentavos: 0,
   notas: '',
   ...cambios,
 });
@@ -162,4 +163,51 @@ test('el dinero nunca pasa por coma flotante', () => {
 test('el número del comprobante lleva el año y cuatro dígitos', () => {
   assert.equal(formatoNumeroVenta('2026', 7), 'VTA-2026-0007');
   assert.equal(formatoNumeroVenta('2026', 1_234), 'VTA-2026-1234');
+});
+
+// --- Los puntos pagados ------------------------------------------------------
+
+test('lo pagado con puntos rebaja la base, igual que un descuento', () => {
+  const t = totalesDe(venta({ canjeCentavos: 1_000 }), PANAMA);
+  assert.equal(t.canjeCentavos, 1_000);
+  assert.equal(t.subtotalCentavos, 99_000);
+  assert.equal(t.itbmsCentavos, 6_930, 'el impuesto se cobra sobre lo que de verdad se cobró');
+  assert.equal(t.totalCentavos, 105_930);
+});
+
+test('el descuento y los puntos se suman para ver si caben, no se miran por separado', () => {
+  // Por separado los dos pasaban —60 % cada uno— y la venta acababa en
+  // negativo. Es el fallo que esta comprobación existe para impedir.
+  assert.throws(
+    () => totalesDe(venta({ descuentoCentavos: 60_000, canjeCentavos: 60_000 }), PANAMA),
+    VentaInvalida,
+  );
+});
+
+test('los puntos y el descuento se guardan separados, no sumados', () => {
+  const t = totalesDe(venta({ descuentoCentavos: 5_000, canjeCentavos: 1_000 }), PANAMA);
+  assert.equal(t.descuentoCentavos, 5_000, 'margen que cedió la tienda');
+  assert.equal(t.canjeCentavos, 1_000, 'el programa de puntos pagándose solo');
+  assert.equal(t.subtotalCentavos, 94_000);
+});
+
+// --- El flete y el armado ----------------------------------------------------
+
+test('el flete y el armado van al mismo 7 %: son cargos accesorios', () => {
+  // Decreto Ejecutivo 84 de 2005: «entrega o entrega a domicilio» y «gastos de
+  // instalación o montaje» entran en la base imponible. Sacarlos porque «el
+  // transporte está exento» es declarar de menos.
+  const t = totalesDe(
+    venta({
+      lineas: [
+        linea({ descripcion: 'Juego de sala', precioCentavos: 90_000 }),
+        linea({ descripcion: 'Entrega en La Chorrera', precioCentavos: 2_500, tipo: 'flete' }),
+        linea({ descripcion: 'Armado', precioCentavos: 1_500, tipo: 'armado' }),
+      ],
+    }),
+    PANAMA,
+  );
+  assert.equal(t.brutoCentavos, 94_000);
+  assert.equal(t.itbmsCentavos, 6_580, 'el 7 % de los 94,000, flete y armado incluidos');
+  assert.equal(t.totalCentavos, 100_580);
 });

@@ -11,6 +11,7 @@
  */
 
 import { aCentavos, api, comoDolares, comoFecha, comoPuntos } from './api.js';
+import { ayuda } from '../hub/ayuda.js';
 
 export function el(etiqueta, atributos = {}, hijos = []) {
   const nodo = document.createElement(etiqueta);
@@ -130,7 +131,7 @@ export function buscador({ alElegir, autoenfoque = false }) {
 
   const nodo = el('div', {}, [
     el('label', { clase: 'campo', for: 'q' }, [
-      el('span', { clase: 'etiqueta', texto: 'Busca al socio' }),
+      el('span', { clase: 'etiqueta', texto: 'Busca al cliente' }),
       entrada,
     ]),
     lista,
@@ -287,7 +288,7 @@ function listo(hecho, socio, otraVez, ir) {
     el('button', { clase: 'boton', texto: 'Registrar otra', onclick: otraVez }),
     el('button', {
       clase: 'boton secundario',
-      texto: 'Ver su ficha',
+      texto: 'Ver sus datos',
       onclick: () => ir(`#/socio/${socio.codigo}`),
     }),
   ]);
@@ -299,7 +300,7 @@ function listo(hecho, socio, otraVez, ir) {
 
 export function pantallaSocios({ ir }) {
   return el('div', { clase: 'tarjeta' }, [
-    el('h1', { texto: 'Socios' }),
+    el('h1', { texto: 'Clientes' }),
     buscador({ autoenfoque: true, alElegir: (s) => ir(`#/socio/${s.codigo}`) }),
   ]);
 }
@@ -326,7 +327,7 @@ export function ficha({ datos, ir, recargar }) {
     el('div', { clase: 'tarjeta' }, [
       el('p', { clase: 'antetitulo', texto: socio.codigo }),
       el('h1', { texto: `${socio.nombre} ${socio.apellido}`.trim() }),
-      el('p', { clase: 'nota', texto: `${socio.telefono} · alta ${comoFecha(socio.creadoEn)}` }),
+      el('p', { clase: 'nota', texto: `${socio.telefono} · cliente desde ${comoFecha(socio.creadoEn)}` }),
       socio.estado === 'suspendido' ? aviso('Esta cuenta está suspendida.', 'espera') : null,
       socio.pinTemporal
         ? aviso('Tiene un PIN temporal: elegirá uno suyo la próxima vez que entre.', 'espera')
@@ -370,7 +371,7 @@ export function ficha({ datos, ir, recargar }) {
       : null,
 
     el('div', { clase: 'tarjeta' }, [
-      el('h2', { texto: 'Su bitácora' }),
+      el('h2', { texto: 'Sus puntos, uno por uno' }),
       bitacora.length
         ? el(
             'ul',
@@ -551,7 +552,7 @@ export function pantallaCanjes({ ir }) {
   const buscar = el('form', { clase: 'tarjeta', novalidate: true }, [
     el('h1', { texto: 'Entregar un premio' }),
     el('label', { clase: 'campo', for: 'codigo' }, [
-      el('span', { clase: 'etiqueta', texto: 'El código que trae el socio' }),
+      el('span', { clase: 'etiqueta', texto: 'El código que trae el cliente' }),
       entrada,
     ]),
     boton,
@@ -675,7 +676,7 @@ function confirmarEntrega(canje, volver, ir) {
         el('button', { clase: 'boton', texto: 'Atender otro', onclick: volver }),
         el('button', {
           clase: 'boton secundario',
-          texto: 'Ver su ficha',
+          texto: 'Ver sus datos',
           onclick: () => ir(`#/socio/${canje.socioCodigo}`),
         }),
       ]),
@@ -726,12 +727,16 @@ export function reportes({ datos, ir }) {
         el('span', { clase: 'unidad', texto: 'puntos vivos' }),
       ]),
       el('p', { clase: 'grande', texto: `Equivalen a ${comoDolares(general.pasivoCentavos)} en descuentos.` }),
-      el('p', {
-        clase: 'nota',
-        texto:
-          'Solo se convierte en dinero cuando alguien los canjea. Una parte nunca ' +
-          'se canjea, y por eso el costo real es siempre menor que esta cifra.',
-      }),
+      el('p', { clase: 'nota' }, [
+        document.createTextNode('El costo real será menor que esta cifra.'),
+        ayuda(
+          'Un punto solo cuesta dinero cuando alguien lo canjea por un premio. Una parte de ' +
+            'los puntos nunca se canjea —la gente se muda, se olvida, o prefiere guardarlos— ' +
+            'así que esto es el máximo que el programa podría llegar a costar, no lo que va a ' +
+            'costar.',
+          { etiqueta: 'Por qué el costo será menor' },
+        ),
+      ]),
     ]),
 
     // EL PASIVO, PARTIDO EN DOS, y es la cifra que más dice de las dos.
@@ -765,12 +770,18 @@ export function reportes({ datos, ir }) {
         ]),
       ]),
       general.esperando.socios
-        ? el('p', {
-            clase: 'nota',
-            texto:
-              `Hay ${general.esperando.socios} persona(s) con puntos suyos sin recoger porque ` +
-              'todavía no escanearon el QR. Salen en Clientes → Sin reclamar.',
-          })
+        ? el('p', { clase: 'nota' }, [
+            document.createTextNode(
+              `${general.esperando.socios} persona(s) no saben que tienen puntos. Míralas en ` +
+                'Clientes → Sin reclamar.',
+            ),
+            ayuda(
+              'Son clientes que compraron y no escanearon el QR. Sus puntos están guardados y ' +
+                'les esperan. Es la mejor lista para llamar: ya compraron una vez y tienen ' +
+                'dinero suyo sin recoger en la tienda.',
+              { etiqueta: 'Quiénes son' },
+            ),
+          ])
         : null,
     ]),
 
@@ -800,11 +811,11 @@ export function reportes({ datos, ir }) {
     ]),
 
     el('div', { clase: 'tarjeta' }, [
-      el('h2', { texto: 'Socios' }),
+      el('h2', { texto: 'Clientes' }),
       el('ul', { clase: 'lista' }, [
-        renglon('Dados de alta', general.socios.total, ''),
+        renglon('Clientes registrados', general.socios.total, ''),
         renglon('Que ya compraron', general.socios.conCompra, ''),
-        renglon('Que vinieron por un referido', general.socios.porReferido, ''),
+        renglon('Que vinieron invitados por otro', general.socios.porReferido, ''),
       ]),
     ]),
 
@@ -812,7 +823,7 @@ export function reportes({ datos, ir }) {
     columnasAltas(altas),
 
     el('div', { clase: 'tarjeta' }, [
-      el('h2', { texto: 'Quién trae más gente' }),
+      el('h2', { texto: 'Quién invita a más gente' }),
       padrinos.length
         ? el(
             'ul',
@@ -976,8 +987,8 @@ function barrasVendedoras(vendedoras) {
 function columnasAltas(altas) {
   if (!altas.length) {
     return el('div', { clase: 'tarjeta' }, [
-      el('h2', { texto: 'Socios nuevos por semana' }),
-      el('p', { clase: 'nota', texto: 'Todavía no hay altas.' }),
+      el('h2', { texto: 'Clientes nuevos por semana' }),
+      el('p', { clase: 'nota', texto: 'Todavía no hay clientes.' }),
     ]);
   }
 
@@ -986,7 +997,7 @@ function columnasAltas(altas) {
 
   if (altas.length < 3) {
     return el('div', { clase: 'tarjeta' }, [
-      el('h2', { texto: 'Socios nuevos' }),
+      el('h2', { texto: 'Clientes nuevos' }),
       el('div', { clase: 'cifra sin-caja' }, [
         el('span', { clase: 'cifra-valor', texto: comoPuntos(total) }),
         el('span', {
@@ -1006,12 +1017,12 @@ function columnasAltas(altas) {
   const mayor = Math.max(...altas.map((a) => a.altas), 1);
 
   return el('div', { clase: 'tarjeta' }, [
-    el('h2', { texto: 'Socios nuevos por semana' }),
+    el('h2', { texto: 'Clientes nuevos por semana' }),
     el(
       'ul',
       { clase: 'columnas' },
       altas.map((a) =>
-        el('li', { title: `Semana del ${a.desde}: ${a.altas} alta(s), ${a.porReferido} por referido` }, [
+        el('li', { title: `Semana del ${a.desde}: ${a.altas} cliente(s) nuevo(s), ${a.porReferido} por invitación` }, [
           el('span', { clase: 'col-valor', texto: String(a.altas) }),
           el('div', { clase: 'col-riel' }, [
             el('div', { clase: 'col', style: `height: ${Math.max(4, Math.round((a.altas / mayor) * 100))}%` }),
@@ -1022,7 +1033,7 @@ function columnasAltas(altas) {
     ),
     el('p', {
       clase: 'nota',
-      texto: `De ${total} altas, ${porReferido} vinieron por un referido.`,
+      texto: `De ${total} clientes nuevos, ${porReferido} vinieron invitados por otro.`,
     }),
   ]);
 }
