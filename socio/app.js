@@ -12,6 +12,7 @@ import {
   actividad,
   cargando,
   entrar,
+  invita,
   misPuntos,
   portada,
   problema,
@@ -71,7 +72,7 @@ async function pintar() {
 
   // Las pantallas con sesión: si no hay, se manda a entrar en vez de enseñar
   // una pantalla vacía que no explica nada.
-  const necesitaSesion = ruta === '#/puntos' || ruta === '#/actividad';
+  const necesitaSesion = ruta === '#/puntos' || ruta === '#/actividad' || ruta === '#/invita';
   if (necesitaSesion && !estado.socio) return ir('#/entrar');
 
   switch (ruta) {
@@ -83,6 +84,15 @@ async function pintar() {
 
     case '#/puntos':
       return poner(misPuntos({ ...estado, ir, salir }));
+
+    case '#/invita': {
+      poner(cargando());
+      try {
+        return poner(invita({ datos: await api.referidos(), ir }));
+      } catch (fallo) {
+        return poner(problema(fallo.message, () => pintar()));
+      }
+    }
 
     case '#/actividad': {
       poner(cargando());

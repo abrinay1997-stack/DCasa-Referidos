@@ -11,6 +11,7 @@ import { sentenciaAsiento, sentenciaReverso } from './movimientos';
 import { comoRespuesta, faltaParaCompras, REGLAS } from './reglas';
 import { baseDeCompra, puntosDeCompra } from '../compartido/puntos';
 import { porCodigo } from './socios';
+import * as referidos from './referidos';
 import { facturaNormal } from '../compartido/compras';
 import { choco } from '../compartido/choques';
 
@@ -61,6 +62,8 @@ export interface CompraRegistrada {
   montoCentavos: number;
   puntos: number;
   saldoNuevo: number;
+  /** Si esta compra disparó el pago de un referido, y cuánto. */
+  referido: { alPadrino: number; alAhijado: number } | null;
 }
 
 /**
@@ -71,8 +74,9 @@ export interface CompraRegistrada {
  * compra que los explique, son estados que no pueden existir — y la única forma
  * de que no existan es que las dos escrituras viajen juntas.
  *
- * El referido NO se paga aquí todavía: llega en la fase 3, y cuando llegue se
- * mete en este mismo batch por la misma razón.
+ * El pago del referido, cuando toca, entra en ESE MISMO batch por la misma
+ * razón: unos puntos de referido sin la compra que los explica, o una compra
+ * que debía pagarlo y no lo hizo, son estados que no pueden existir.
  */
 export async function registrar(
   base: D1Database,
@@ -159,6 +163,37 @@ export async function registrar(
     );
   }
 
+  // ¿Esta compra estrena a alguien que vino invitado? Se decide ANTES de
+  // insertar —«ninguna compra previa» tiene que significar que la de ahora es
+  // la primera— y las sentencias se suman a este mismo batch.
+  const referido = await referidos.alRegistrarCompra(
+    base,
+    {
+      codigo: socio.codigo,
+      nombre: socio.nombre,
+      referido_por: socio.referido_por,
+      referido_pagado_en: socio.referido_pagado_en,
+    },
+    puntos,
+    ahora,
+    vendedor,
+  );
+  sentencias.push(...referido.sentencias);
+
+  // Un tope alcanzado NO hace fallar la venta: queda dicho en el registro y la
+  // compra se registra igual. La vendedora tiene una cola delante y el programa
+  // no puede ser lo que la detiene.
+  if (
+    referido.motivo &&
+    referido.motivo !== 'sin-padrino' &&
+    referido.motivo !== 'ya-pagado' &&
+    referido.motivo !== 'no-califica'
+  ) {
+    console.log(
+      `Sin pagar referido de ${socio.codigo}: ${referidos.EXPLICACION[referido.motivo]}`,
+    );
+  }
+
   try {
     await base.batch(sentencias);
   } catch (error) {
@@ -183,7 +218,16 @@ export async function registrar(
     .bind(socio.codigo)
     .first<{ saldo: number }>();
 
-  return { id, factura, montoCentavos, puntos, saldoNuevo: saldo?.saldo ?? 0 };
+  return {
+    id,
+    factura,
+    montoCentavos,
+    puntos,
+    saldoNuevo: saldo?.saldo ?? 0,
+    referido: referido.pagado
+      ? { alPadrino: referido.pagado.alPadrino, alAhijado: referido.pagado.alAhijado }
+      : null,
+  };
 }
 
 /**

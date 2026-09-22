@@ -397,3 +397,93 @@ export function problema(mensaje, reintentar) {
       : null,
   ]);
 }
+
+// ---------------------------------------------------------------------------
+// Invita y gana
+// ---------------------------------------------------------------------------
+
+/**
+ * La pantalla que hace funcionar el programa entero.
+ *
+ * En Panamá los referidos se mueven por WhatsApp, no por correo ni por enlaces
+ * copiados a mano. Por eso el botón de compartir es el elemento principal y no
+ * un añadido al final: es el único que de verdad trae gente nueva.
+ */
+export function invita({ datos, ir }) {
+  const { codigo, enlace, alPadrino, alAhijado, traidos } = datos;
+
+  const mensaje =
+    `Te invito al programa de puntos de D’CASA. ` +
+    (alAhijado ? `Regístrate con mi código y empiezas con ${alAhijado} puntos: ` : 'Regístrate aquí: ') +
+    enlace;
+
+  const copiar = el('button', { clase: 'boton secundario', texto: 'Copiar mi enlace' });
+  copiar.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(enlace);
+      copiar.textContent = 'Copiado';
+      setTimeout(() => (copiar.textContent = 'Copiar mi enlace'), 2000);
+    } catch {
+      // Sin permiso de portapapeles —pasa en algunos navegadores de móvil—, se
+      // selecciona el texto para que al menos se pueda copiar a mano.
+      const campo = document.getElementById('mi-enlace');
+      campo?.focus();
+      campo?.select?.();
+      copiar.textContent = 'Cópialo de arriba';
+    }
+  });
+
+  return el('div', {}, [
+    el('div', { clase: 'tarjeta centrada' }, [
+      el('p', { clase: 'antetitulo', texto: 'Invita y gana' }),
+      el('h1', { texto: `Gana ${comoPuntos(alPadrino)} puntos` }),
+      el('p', {
+        texto:
+          `Comparte tu código. Cuando la persona que traigas haga su primera compra, ` +
+          `${comoPuntos(alPadrino)} puntos caen en tu cuenta` +
+          (alAhijado ? ` y ${comoPuntos(alAhijado)} en la suya.` : '.'),
+      }),
+
+      el('div', { clase: 'placa' }, [
+        el('span', { clase: 'codigo-grande', texto: codigo }),
+      ]),
+
+      el('input', { id: 'mi-enlace', clase: 'enlace-copiable', type: 'text', value: enlace, readonly: true }),
+
+      el('a', {
+        clase: 'boton',
+        texto: 'Compartir por WhatsApp',
+        href: `https://wa.me/?text=${encodeURIComponent(mensaje)}`,
+        target: '_blank',
+        rel: 'noopener',
+      }),
+      copiar,
+    ]),
+
+    el('div', { clase: 'tarjeta' }, [
+      el('h2', { texto: 'A quién has traído' }),
+      traidos.length
+        ? el(
+            'ul',
+            { clase: 'bitacora' },
+            traidos.map((t) =>
+              el('li', {}, [
+                el('div', { clase: 'linea' }, [
+                  el('span', { clase: 'que', texto: t.nombre }),
+                  t.compro
+                    ? el('span', { clase: 'puntos suma', texto: `+${comoPuntos(t.puntos)}` })
+                    : el('span', { clase: 'cuando', texto: 'Aún no ha comprado' }),
+                ]),
+                el('span', { clase: 'cuando', texto: `Desde ${comoFecha(t.desde)}` }),
+              ]),
+            ),
+          )
+        : el('p', {
+            clase: 'nota',
+            texto: 'Todavía no has traído a nadie. Comparte tu enlace y aparecerán aquí.',
+          }),
+    ]),
+
+    el('button', { clase: 'boton secundario', texto: 'Volver', onclick: () => ir('#/puntos') }),
+  ]);
+}

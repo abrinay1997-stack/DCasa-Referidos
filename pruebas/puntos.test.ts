@@ -199,3 +199,54 @@ test('los puntos no llevan decimales', () => {
   assert.equal(comoPuntos(1250), '1,250');
   assert.equal(comoPuntos(0), '0');
 });
+
+// ---------------------------------------------------------------------------
+// La economía que se decidió de verdad
+// ---------------------------------------------------------------------------
+
+test('las reglas de D’CASA, contra datos/puntos.json', async () => {
+  const { default: reales } = await import('../datos/puntos.json', { with: { type: 'json' } });
+  const r = reales as unknown as Reglas;
+
+  // Esto NO es duplicar la configuración: es fijar por escrito lo que se
+  // decidió, para que un cambio accidental —un cero de más, una coma movida—
+  // no pase por las pruebas sin que nadie lo mire. Si la economía cambia a
+  // propósito, esta prueba se cambia a propósito.
+  assert.equal(r.acumulacion.puntosPorDolar, 1, '1 punto por dólar');
+  assert.equal(r.acumulacion.baseDeCalculo, 'total', 'sobre el total, ITBMS incluido');
+  assert.equal(r.acumulacion.compraMinimaCentavos, 2000, 'compra mínima de $20');
+  assert.equal(r.bienvenida.puntos, 0, 'nada por registrarse');
+  assert.equal(r.referido.puntosAlPadrino, 500);
+  assert.equal(r.referido.puntosAlAhijado, 250);
+  assert.equal(r.canje.saldoMinimoParaCanjear, 500);
+  assert.equal(r.vencimiento.meses, null, 'los puntos no vencen');
+
+  // La cifra que costó la pregunta abierta desde agosto.
+  assert.equal(puntosDeCompra(107000, r), 1070, '$1,070 dan 1,070 puntos, no 1,000');
+
+  // El 1 % de recompensa, comprobado sobre una venta redonda.
+  assert.equal(puntosDeCompra(100000, r), 1000, '$1,000 dan 1,000 puntos = $10 al canjear');
+
+  // La compra mínima.
+  assert.equal(puntosDeCompra(1999, r), 0, '$19.99 no llega al mínimo');
+  assert.equal(puntosDeCompra(2000, r), 20, '$20 sí');
+
+  // El freno contra el error de tecleo: $4,999.00 escrito como 499900.
+  assert.equal(
+    puntosDeCompra(49990000, r),
+    r.acumulacion.puntosMaximosPorCompra,
+    'un monto absurdo se recorta en el tope',
+  );
+});
+
+test('el tope mensual del padrino da para diez referidos', async () => {
+  const { default: reales } = await import('../datos/puntos.json', { with: { type: 'json' } });
+  const r = reales as unknown as Reglas;
+
+  const tope = r.referido.topeDePuntosPorPadrinoAlMes!;
+  const porReferido = r.referido.puntosAlPadrino!;
+
+  assert.equal(tope / porReferido, 10, 'diez referidos cobrables al mes');
+  // $50 mensuales es lo máximo que una sola persona puede sacar en bonos.
+  assert.equal((tope / 100).toFixed(2), '50.00');
+});

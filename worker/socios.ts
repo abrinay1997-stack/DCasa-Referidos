@@ -60,6 +60,8 @@ interface Fila {
   intentos_fallidos: number;
   bloqueado_hasta: string | null;
   referido_por: string | null;
+  /** Cuándo se le pagó a quien lo trajo. El sello que impide pagar dos veces. */
+  referido_pagado_en: string | null;
   creado_en: string;
   eliminado_en: string | null;
 }
@@ -82,7 +84,8 @@ function comoSocio(fila: Fila): Socio {
 
 const COLUMNAS = `codigo, nombre, apellido, telefono, telefono_normal, cedula, correo, cumple,
   estado, pin_hash, pin_salt, pin_iteraciones, pin_cambiado_en, pin_temporal,
-  intentos_fallidos, bloqueado_hasta, referido_por, creado_en, eliminado_en`;
+  intentos_fallidos, bloqueado_hasta, referido_por, referido_pagado_en,
+  creado_en, eliminado_en`;
 
 export async function porCodigo(base: D1Database, codigo: string): Promise<Fila | null> {
   return base

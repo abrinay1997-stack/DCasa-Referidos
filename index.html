@@ -118,6 +118,26 @@
     margin-top: 6px;
   }
   .codigo { font-size: 15px; color: var(--apagado); margin: 0; }
+  /* El código, para compartir. Monoespaciado y espaciado: se lee en voz alta y
+     se teclea desde una pantalla rayada. */
+  .codigo-grande {
+    display: block;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 30px;
+    letter-spacing: 0.14em;
+    font-weight: 500;
+  }
+  .enlace-copiable {
+    width: 100%;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 14px;
+    padding: 11px 12px;
+    border: 1px solid var(--borde);
+    border-radius: 10px;
+    background: var(--hueso);
+    color: var(--tinta);
+    text-align: center;
+  }
   .codigo b { color: var(--tinta); font-family: ui-monospace, Menlo, monospace; letter-spacing: 0.06em; }
 
   /* Formularios. Los campos van a 17px o más: por debajo, Safari en iPhone

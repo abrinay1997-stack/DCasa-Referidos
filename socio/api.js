@@ -55,6 +55,7 @@ export const api = {
   entrar: (telefono, pin) => json('/api/socio/entrar', { telefono, pin }),
   salir: () => json('/api/socio/salir', {}),
   actividad: (desde = 0) => pedir(`/api/socio/actividad?desde=${desde}`),
+  referidos: () => pedir('/api/socio/referidos'),
   padrino: (codigo) => pedir(`/api/socio/padrino?r=${encodeURIComponent(codigo)}`),
 };
 

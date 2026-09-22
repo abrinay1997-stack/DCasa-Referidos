@@ -36,7 +36,8 @@ import { identificar, revisarPuerta, SinAcceso } from './acceso';
 import * as socios from './socios';
 import * as compras from './compras';
 import { ajustar, bitacoraDe, saldoDe } from './movimientos';
-import { queEstaEncendido } from './reglas';
+import { queEstaEncendido, REGLAS } from './reglas';
+import * as referidos from './referidos';
 import { COOKIE_SESION, cookieBorrada, cookieDe, leerSesion } from './sesion';
 
 /** Todo lo del equipo cuelga de aquí. Ver la cabecera. */
@@ -284,6 +285,19 @@ async function zonaPublica(peticion: Request, url: URL, env: Env): Promise<Respo
     if (ruta === 'socio/pin' && metodo === 'POST') {
       const { cookie } = await socios.cambiarPin(base, fila, peticion, env);
       return conCookie(json({ listo: true }), cookie);
+    }
+
+    // Su código, su enlace y a quién ha traído. El enlace se arma con el
+    // origen de la petición, no con una dirección escrita a mano: el día que
+    // esto viva en socios.dcasapty.com, lo que el socio comparte cambia solo.
+    if (ruta === 'socio/referidos' && metodo === 'GET') {
+      return json({
+        codigo: fila.codigo,
+        enlace: `${url.origin}/?r=${fila.codigo}`,
+        alPadrino: REGLAS.referido.puntosAlPadrino,
+        alAhijado: REGLAS.referido.puntosAlAhijado,
+        traidos: await referidos.deSocio(base, fila.codigo),
+      });
     }
 
     if (ruta === 'socio/actividad' && metodo === 'GET') {
