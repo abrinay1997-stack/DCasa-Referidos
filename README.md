@@ -161,25 +161,34 @@ Dos en GitHub (Settings → Secrets and variables → Actions):
 | `CLOUDFLARE_API_TOKEN` | Cloudflare → Manage Account → API Tokens → Create Token → plantilla **Edit Cloudflare Workers**. **Antes de crearlo, súmale Account → D1 → Edit**: sin ese permiso, publicar funciona pero migrar no, y el fallo llega con la base ya tocada a medias. |
 | `CLOUDFLARE_ACCOUNT_ID` | La barra lateral del panel de Workers. Aquí es **obligatorio**, aunque en otros repositorios sea opcional: este dueño tiene más de una cuenta, y cuando el token ve varias, wrangler pregunta cuál — y un token acotado no tiene permiso para leer la lista, así que falla con un error sobre permisos que no es lo que pasa. (Alternativa: escribir `"account_id"` en `wrangler.jsonc`; el flujo acepta las dos formas y prefiere el archivo.) |
 
-Y dos en el Worker, que **no** van en GitHub y se ponen una sola vez desde tu
-terminal:
+Y dos en el **Worker**, que no van en GitHub. Se ponen **una sola vez** desde la
+pestaña Actions → «Poner los secretos del Worker» → Run workflow:
 
-```bash
-openssl rand -base64 32 | npx wrangler secret put SECRETO_SESION
-openssl rand -base64 32 | npx wrangler secret put PIMIENTA_PIN
-```
+| Secreto | Qué protege | ¿Se puede cambiar? |
+|---|---|---|
+| `SECRETO_SESION` | Firma la cookie de sesión del socio. Con ella cualquiera se fabrica una sesión a nombre de cualquiera. | Sí. Solo cierra las sesiones abiertas; cada socio vuelve a entrar con su PIN. |
+| `PIMIENTA_PIN` | Se concatena al PIN antes de derivar el hash, y vive fuera de la base. Un PIN son seis dígitos: contra un volcado robado eso se agota en minutos, haya sal o no. Sin la pimienta, ese volcado no sirve de nada. | **No.** Ver abajo. |
 
-- **`SECRETO_SESION`** firma la cookie de sesión del socio. Con ella cualquiera
-  se fabrica una sesión a nombre de cualquiera.
-- **`PIMIENTA_PIN`** se concatena al PIN antes de derivar el hash, y vive fuera
-  de la base a propósito: un PIN son seis dígitos, y eso se rompe por fuerza
-  bruta en segundos contra un volcado robado. Con la pimienta fuera, ese volcado
-  no sirve de nada. **No se rota a la ligera**: cambiarla deja a todos los socios
-  fuera de golpe.
+Los dos son valores al azar que **nadie tiene que ver, recordar ni escribir
+nunca**. Se generan en el flujo y se quedan en Cloudflare, sin pasar por el
+portapapeles de nadie ni por el historial de una terminal.
 
-Viven en el Worker y no en Actions porque Actions no los necesita para nada:
-`wrangler deploy` no los toca, y una llave que no hace falta en un sitio es una
-llave de más dando vueltas.
+**El flujo instala solo lo que falta y nunca sobrescribe.** Volver a lanzarlo no
+hace nada y lo dice. Esa es la decisión más importante de ese archivo:
+
+> Cambiar `PIMIENTA_PIN` **rompe el PIN de todos los socios a la vez y no tiene
+> vuelta atrás**. Los hash guardados se derivaron con la pimienta vieja, que no
+> está escrita en ningún sitio; con la nueva no cuadra ninguno. La única salida
+> sería que una vendedora reiniciara el PIN de cada socio, uno por uno, con cada
+> uno delante. Por eso desde ese flujo no se puede rotar, ni con confirmación.
+> El día que haga falta, es una migración pensada, no un botón.
+
+`SECRETO_SESION` sí se puede rotar marcando la casilla, y sirve si alguna vez se
+sospecha que el valor se filtró.
+
+Viven en el Worker y no en Actions porque Actions no los necesita: `wrangler
+deploy` no los toca, y una llave que no hace falta en un sitio es una llave de
+más dando vueltas.
 
 ### Publicar a mano, si hace falta
 
