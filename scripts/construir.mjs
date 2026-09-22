@@ -59,6 +59,7 @@ await mkdir(destino, { recursive: true });
 
 console.log('· Copiando la app del socio…');
 await cp(join(raiz, 'index.html'), join(destino, 'index.html'));
+await cp(join(raiz, 'socio'), join(destino, 'socio'), { recursive: true });
 await cp(join(raiz, 'hub'), join(destino, 'hub'), { recursive: true });
 
 console.log('· Copiando el panel del equipo…');
@@ -77,14 +78,16 @@ await writeFile(join(destino, '_headers'), `${cabeceras.join('\n')}\n`, 'utf8');
 // El presupuesto, medido sobre lo que de verdad se va a publicar.
 console.log('· Midiendo la zona del socio…');
 let pesoSocio = 0;
-for (const nombre of await readdir(destino)) {
+for (const carpeta of ['', 'socio']) {
   // El panel no cuenta: lo usan seis personas del equipo desde la tienda, no
   // los clientes, y sus pantallas van a ser mucho más pesadas por necesidad.
-  if (nombre === 'panel') continue;
-  const ruta = join(destino, nombre);
-  if (statSync(ruta).isDirectory()) continue;
-  if (!['.js', '.mjs', '.html'].includes(extname(nombre))) continue;
-  pesoSocio += gzipSync(readFileSync(ruta)).length;
+  const dir = carpeta ? join(destino, carpeta) : destino;
+  for (const nombre of await readdir(dir)) {
+    const ruta = join(dir, nombre);
+    if (statSync(ruta).isDirectory()) continue;
+    if (!['.js', '.mjs', '.html'].includes(extname(nombre))) continue;
+    pesoSocio += gzipSync(readFileSync(ruta)).length;
+  }
 }
 
 const enKb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
