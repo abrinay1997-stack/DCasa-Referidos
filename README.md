@@ -300,33 +300,44 @@ error de impresión. Va sobre blanco, sobre hueso, o dentro de su placa.
 - [x] **Fase 1 — El esqueleto y la puerta.** Worker de dos zonas, guardia de
       Access, migraciones `0001`–`0002`, las dos fuentes de datos, el
       verificador, el build y las pruebas del dinero.
-- [ ] **Fase 2 — Socios y puntos.** Alta, PIN, sesión, candado, registro de
+- [x] **Fase 2 — Socios y puntos.** Alta, PIN, sesión, candado, registro de
       compra, libro mayor. Pantallas de socio y de panel.
-- [ ] **Fase 3 — Referidos.** El vestado con la primera compra, los topes, el QR
+- [x] **Fase 3 — Referidos.** El vestado con la primera compra, los topes, el QR
       personal y compartir por WhatsApp.
-- [ ] **Fase 4 — Premios y canjes.** La máquina de estados y el Cron de
+- [x] **Fase 4 — Premios y canjes.** La máquina de estados y el Cron de
       vencimientos.
-- [ ] **Fase 5 — Reportes, términos y PWA.**
+- [x] **Fase 5 — Reportes, términos y PWA.** El pasivo del programa, el reporte
+      por vendedora, los términos —que leen las reglas reales, así que no pueden
+      contradecir al sistema— y el regalo de cumpleaños, que lo acredita el
+      Cron y no una pantalla.
+
+El programa está entero. Lo que queda no es código: es lo de abajo.
 
 ## Lo que falta preguntarle a Marcial
 
-Nada de esto se inventa. Hasta que llegue, `datos/puntos.json` se queda con sus
-`null` y el programa no acredita un punto.
+La economía ya está decidida y vive en [`datos/puntos.json`](datos/puntos.json):
+1 punto por dólar sobre el total con ITBMS, $20 de compra mínima, 0 por
+registrarse, 500 al padrino y 250 al ahijado con la primera compra, 500 de
+cumpleaños, sin vencimiento. Nada de eso se inventó aquí.
 
-1. **¿Cuántos puntos da cada dólar?**
-2. **¿Los precios llevan ITBMS incluido, y los puntos salen del total o del
-   subtotal?** — ya estaba marcado como pendiente en el manual de marca desde
-   agosto; ahora bloquea código. Sobre $1,000 la diferencia es del 6.5 %.
-3. ¿Compra mínima para sumar?
-4. ¿Se regalan puntos por registrarse?
-5. ¿Cuánto gana el padrino? ¿Y el ahijado?
-6. ¿Cuántos referidos puede cobrar un socio, en total y al mes?
-7. ¿Qué premios, y a cuántos puntos cada uno?
-8. ¿Los puntos vencen?
-9. ¿Regalo de cumpleaños?
-10. ¿Qué correos entran al panel?
-11. **¿El DNS de `dcasapty.com` se puede mover a Cloudflare?** — de esto depende
-    la dirección de los QR, y un QR impreso no se cambia.
+Quedan cuatro cosas, y ninguna bloquea el código:
+
+1. **Confirmar el tope de 50,000 puntos por compra** (`acumulacion.puntosMaximosPorCompra`).
+   No es una regla comercial: es un guardia contra el dedo que teclea $50,000 en
+   vez de $500. Si D'CASA vende de verdad por encima de eso, hay que subirlo
+   antes de que una venta grande se quede corta de puntos.
+2. **Qué productos físicos entran como premio, y a cuántos puntos.** La escalera
+   de descuentos ($5 a $100) ya está sembrada en `0004_premios_canjes.sql` y
+   funciona sola. Un premio físico necesita costo real, no precio de lista.
+   — Y de paso: **`LXI090202` figura con costo $26.01 y precio $4.99**. Uno de
+   los dos está mal, y si es el precio, cada venta pierde $21.
+3. **Qué correos más entran al panel.** Hoy la política `Equipo D'CASA` de Access
+   tiene uno solo. Cada vendedora necesita el suyo: el reporte antifraude
+   agrupa por correo, y con un correo compartido no agrupa nada.
+4. **¿El DNS de `dcasapty.com` se puede mover a Cloudflare?** — de esto depende
+   la dirección de los QR, y un QR impreso no se cambia. Mientras tanto todo
+   vive en `dcasa-socios.abrinay1997.workers.dev`, que lleva dentro el nombre de
+   una persona: antes de mandar un QR a imprenta, hay que resolver esto.
 
 ---
 

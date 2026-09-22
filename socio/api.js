@@ -57,6 +57,7 @@ export const api = {
   actividad: (desde = 0) => pedir(`/api/socio/actividad?desde=${desde}`),
   referidos: () => pedir('/api/socio/referidos'),
   premios: () => pedir('/api/socio/premios'),
+  terminos: () => pedir('/api/terminos'),
   canjes: () => pedir('/api/socio/canjes'),
   pedirPremio: (premio) => json('/api/socio/canjes', { premio }),
   cancelarCanje: (codigo) => json(`/api/socio/canjes/${encodeURIComponent(codigo)}/cancelar`, {}),

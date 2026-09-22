@@ -22,6 +22,7 @@
 import { ErrorPeticion, cuerpoJson } from './http';
 import { REGLAS } from './reglas';
 import { ALFABETO_CODIGO } from '../compartido/socios';
+import { sentenciaAsiento } from './movimientos';
 
 /** Seis caracteres del mismo alfabeto sin ambigüedades que los códigos de socio. */
 function codigoDeCanje(): string {
@@ -493,4 +494,69 @@ export async function paraElPanel(base: D1Database, estado = 'solicitado') {
     ...comoCanje(f),
     socio: ((f.socio as string) ?? '').trim(),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// El regalo de cumpleaños
+// ---------------------------------------------------------------------------
+
+/**
+ * Felicita a quien cumple hoy, una vez al año.
+ *
+ * ---------------------------------------------------------------------------
+ * EXIGE UNA COMPRA PREVIA, Y NO ES TACAÑERÍA
+ *
+ * Sin esa condición, la forma más rentable de usar el programa sería darse de
+ * alta el día antes del propio cumpleaños con cinco teléfonos prestados. El
+ * regalo premia a un cliente, no a una fecha.
+ *
+ * Y se comprueba que no se haya dado ya este año antes de escribir: el Cron
+ * corre cada hora, así que sin esa comprobación el mismo socio cobraría
+ * veinticuatro veces el día de su cumpleaños.
+ * ---------------------------------------------------------------------------
+ */
+export async function felicitarALosDeHoy(base: D1Database): Promise<number> {
+  const puntos = REGLAS.cumpleanos.puntos;
+  if (puntos === null || puntos <= 0) return 0;
+
+  const ahora = new Date();
+  const hoy = ahora.toISOString().slice(5, 10); // 'MM-DD'
+  const desdeEneroUno = `${ahora.getUTCFullYear()}-01-01T00:00:00.000Z`;
+
+  const { results } = await base
+    .prepare(
+      `SELECT s.codigo FROM socios s
+        WHERE s.cumple = ?
+          AND s.estado = 'activo'
+          AND s.eliminado_en IS NULL
+          AND EXISTS (
+            SELECT 1 FROM compras k
+             WHERE k.socio_codigo = s.codigo AND k.anulada_en IS NULL AND k.puntos > 0
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM movimientos m
+             WHERE m.socio_codigo = s.codigo AND m.tipo = 'cumpleanos' AND m.ocurrido_en >= ?
+          )
+        LIMIT 200`,
+    )
+    .bind(hoy, desdeEneroUno)
+    .all<{ codigo: string }>();
+
+  const socios = results ?? [];
+  if (!socios.length) return 0;
+
+  await base.batch(
+    socios.map((s) =>
+      sentenciaAsiento(base, {
+        socioCodigo: s.codigo,
+        tipo: 'cumpleanos',
+        puntos,
+        motivo: '¡Feliz cumpleaños! Un regalo de parte de D’CASA.',
+        autor: 'sistema',
+        ocurridoEn: ahora.toISOString(),
+      }),
+    ),
+  );
+
+  return socios.length;
 }

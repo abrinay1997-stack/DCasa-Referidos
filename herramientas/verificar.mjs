@@ -455,12 +455,17 @@ function reglaPuerta() {
 // 6. La economía del programa
 // ---------------------------------------------------------------------------
 
+// `null` significa «sin decidir» en todo el archivo menos aquí: en estas claves es
+// la decisión, y dice que la regla está apagada a propósito.
+const NULO_ES_DECISION = new Set(['vencimiento.meses']);
+
 function reglaEconomia() {
   const pendientes = [];
   const recorrer = (objeto, camino) => {
     for (const [clave, valor] of Object.entries(objeto)) {
       if (clave.startsWith('$')) continue;
       const donde = camino ? `${camino}.${clave}` : clave;
+      if (NULO_ES_DECISION.has(donde)) continue;
       if (valor === null || valor === 'PENDIENTE') pendientes.push(donde);
       else if (valor && typeof valor === 'object' && !Array.isArray(valor)) {
         recorrer(valor, donde);

@@ -1,0 +1,15 @@
+{
+  "name": "Socios D'CASA",
+  "short_name": "D'CASA",
+  "description": "Tus puntos de D'CASA Panamá: lo que has ganado, lo que puedes cambiar y a quién has invitado.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#1340B1",
+  "background_color": "#EDEAE0",
+  "lang": "es-PA",
+  "icons": [
+    { "src": "/hub/assets/logo-dcasa.png", "sizes": "1783x809", "type": "image/png", "purpose": "any" }
+  ]
+}

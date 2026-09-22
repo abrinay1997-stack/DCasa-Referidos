@@ -39,6 +39,7 @@ import { ajustar, bitacoraDe, saldoDe } from './movimientos';
 import { queEstaEncendido, REGLAS } from './reglas';
 import * as referidos from './referidos';
 import * as canjes from './canjes';
+import * as reportes from './reportes';
 import { COOKIE_SESION, cookieBorrada, cookieDe, leerSesion } from './sesion';
 
 /** Todo lo del equipo cuelga de aquí. Ver la cabecera. */
@@ -59,25 +60,46 @@ export default {
     }
   },
   /**
-   * El Cron, cada hora.
+   * El Cron, cada hora. Hace las dos cosas que nadie va a acordarse de hacer.
    *
-   * Vence los códigos de canje que nadie fue a buscar y devuelve los puntos.
-   * Devolverlos no es cortesía: el socio los ganó comprando, y quedárselos
-   * porque no pudo pasar por la tienda en tres días es la clase de detalle que
-   * hace que un programa de puntos deje de ser creíble.
+   * **Vence los códigos de canje** que nadie fue a buscar y devuelve los
+   * puntos. Devolverlos no es cortesía: el socio los ganó comprando, y
+   * quedárselos porque no pudo pasar por la tienda en tres días es la clase de
+   * detalle que hace que un programa de puntos deje de ser creíble. Si esto
+   * falla, los puntos se quedan reservados y el socio no puede volver a pedir
+   * ese premio.
    *
-   * Si esto falla, los puntos se quedan reservados y el socio no puede volver a
-   * pedir ese premio. Por eso el fallo se registra con su nombre y no en
-   * silencio: es la única parte del sistema que corre sin nadie mirando.
+   * **Y acredita los cumpleaños del día.** Un regalo que depende de que alguien
+   * mire una lista cada mañana es un regalo que se entrega tarde o no se
+   * entrega.
+   *
+   * Los dos pasos corren por separado y los dos son repetibles, así que si uno
+   * revienta el otro igual se hace y el reintento de Cloudflare no duplica
+   * nada. El fallo se registra CON EL NOMBRE DEL PASO que falló: esto corre sin
+   * nadie mirando, y un error que no dice dónde ocurrió no se arregla.
    */
   async scheduled(_evento: ScheduledController, env: Env): Promise<void> {
+    let fallo: unknown = null;
+
     try {
-      const cuantos = await canjes.vencerLosViejos(env.BASE);
-      if (cuantos) console.log(`Vencidos ${cuantos} canje(s); puntos devueltos.`);
+      const vencidos = await canjes.vencerLosViejos(env.BASE);
+      if (vencidos) console.log(`Vencidos ${vencidos} canje(s); puntos devueltos.`);
     } catch (error) {
       console.error('El vencimiento de canjes falló:', error);
-      throw error;
+      fallo = error;
     }
+
+    try {
+      const felicitados = await canjes.felicitarALosDeHoy(env.BASE);
+      if (felicitados) console.log(`Felicitados ${felicitados} socio(s) de cumpleaños.`);
+    } catch (error) {
+      console.error('El regalo de cumpleaños falló:', error);
+      fallo ??= error;
+    }
+
+    // Relanzar es lo que hace que Cloudflare marque la ejecución como fallida y
+    // la reintente. Sin esto, el Cron se vería verde con la mitad sin hacer.
+    if (fallo) throw fallo;
   },
 } satisfies ExportedHandler<Env>;
 
@@ -168,6 +190,8 @@ async function zonaPrivada(peticion: Request, url: URL, env: Env): Promise<Respo
   if (anular && metodo === 'POST') {
     return json(await compras.anular(base, decodeURIComponent(anular[1]!), peticion, correo));
   }
+
+  if (ruta === 'reportes' && metodo === 'GET') return json(await reportes.todo(base));
 
   if (ruta === 'canjes' && metodo === 'GET') {
     return json({ canjes: await canjes.paraElPanel(base, url.searchParams.get('estado') ?? 'solicitado') });
@@ -281,6 +305,22 @@ async function zonaPublica(peticion: Request, url: URL, env: Env): Promise<Respo
   // tocar la base ni revelar nada de nadie.
   if (ruta === 'salud' && metodo === 'GET') {
     return json({ estado: 'en pie', zona: 'socio', encendido: queEstaEncendido() });
+  }
+
+  // Lo que dicen los términos sale de las MISMAS reglas que aplica el
+  // servidor, no de un texto escrito aparte. Si se escribieran a mano, el día
+  // que cambie una cifra los términos dirían una cosa y el sistema haría otra
+  // — y en un programa de puntos eso es una promesa incumplida por escrito.
+  if (ruta === 'terminos' && metodo === 'GET') {
+    return json({
+      puntosPorDolar: REGLAS.acumulacion.puntosPorDolar,
+      compraMinimaCentavos: REGLAS.acumulacion.compraMinimaCentavos,
+      puntosAlPadrino: REGLAS.referido.puntosAlPadrino,
+      puntosAlAhijado: REGLAS.referido.puntosAlAhijado,
+      topeDePuntosPorPadrinoAlMes: REGLAS.referido.topeDePuntosPorPadrinoAlMes,
+      vigenciaDelCodigoHoras: REGLAS.canje.vigenciaDelCodigoHoras,
+      vencimientoMeses: REGLAS.vencimiento.meses,
+    });
   }
 
   // --- Sin sesión ---------------------------------------------------------

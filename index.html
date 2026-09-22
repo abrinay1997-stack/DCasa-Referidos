@@ -7,6 +7,16 @@
 <meta name="description" content="El programa de puntos de D'CASA Panamá. Suma comprando, suma invitando, y cámbialos por lo que quieras de la tienda.">
 <meta name="theme-color" content="#1340B1">
 <link rel="icon" href="hub/assets/logo-dcasa.png">
+<!-- «Añadir a pantalla de inicio». Para este público es la diferencia entre
+     volver y no volver: un icono en el teléfono se toca, un enlace guardado en
+     el navegador se pierde.
+
+     SIN service worker, y es deliberado. Un caché mal hecho enseñando un saldo
+     viejo es peor que no tener app: el socio vería puntos que ya gastó y
+     llegaría a la tienda a pedir un premio que no puede pagar. -->
+<link rel="manifest" href="hub/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="D'CASA">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500&family=Inter:wght@400;500&display=swap">

@@ -71,8 +71,20 @@ await cp(join(raiz, 'panel'), join(destino, 'panel'), { recursive: true });
 // para la zona pública: `run_worker_first` está limitado a `/panel/*`. Ver la
 // cabecera de `compartido/seguridad.ts`, que es de donde sale esta lista — aquí
 // no se escribe ninguna cabecera a mano, para que no puedan discrepar.
+// El manifest tiene que servirse con su tipo o el navegador lo ignora en
+// silencio y «Añadir a pantalla de inicio» no aparece — sin ningún error.
+const cabecerasExtra = [
+  '',
+  '/hub/manifest.webmanifest',
+  '  Content-Type: application/manifest+json; charset=utf-8',
+];
+
 console.log('· Escribiendo las cabeceras de seguridad…');
-const cabeceras = ['/*', ...Object.entries(CABECERAS_SEGURIDAD).map(([n, v]) => `  ${n}: ${v}`)];
+const cabeceras = [
+  '/*',
+  ...Object.entries(CABECERAS_SEGURIDAD).map(([n, v]) => `  ${n}: ${v}`),
+  ...cabecerasExtra,
+];
 await writeFile(join(destino, '_headers'), `${cabeceras.join('\n')}\n`, 'utf8');
 
 // El presupuesto, medido sobre lo que de verdad se va a publicar.

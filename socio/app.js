@@ -15,6 +15,7 @@ import {
   invita,
   miCanje,
   misCanjes,
+  terminos,
   misPuntos,
   portada,
   premios,
@@ -75,7 +76,8 @@ async function pintar() {
 
   // Las pantallas con sesión: si no hay, se manda a entrar en vez de enseñar
   // una pantalla vacía que no explica nada.
-  const necesitaSesion = ruta !== '#/' && ruta !== '#/entrar' && ruta !== '#/registro';
+  const necesitaSesion =
+    ruta !== '#/' && ruta !== '#/entrar' && ruta !== '#/registro' && ruta !== '#/terminos';
   if (necesitaSesion && !estado.socio) return ir('#/entrar');
 
   switch (ruta) {
@@ -87,6 +89,17 @@ async function pintar() {
 
     case '#/puntos':
       return poner(misPuntos({ ...estado, ir, salir }));
+
+    case '#/terminos': {
+      poner(cargando());
+      try {
+        return poner(
+          terminos({ reglas: await api.terminos(), ir, hayVuelta: Boolean(estado.socio) }),
+        );
+      } catch (fallo) {
+        return poner(problema(fallo.message, () => pintar()));
+      }
+    }
 
     case '#/premios': {
       poner(cargando());

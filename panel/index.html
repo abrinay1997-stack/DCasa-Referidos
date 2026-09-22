@@ -209,6 +209,50 @@
   .codigo-chico { font-family: ui-monospace, Menlo, monospace; font-size: 16px; letter-spacing: 0.12em; color: var(--azul); }
   #codigo { font-family: ui-monospace, Menlo, monospace; font-size: 24px; letter-spacing: 0.18em; text-align: center; text-transform: uppercase; }
 
+  /* Fila de cifras. Los números grandes van en proporcionales, no en
+     `tabular-nums`: los dígitos de ancho fijo hacen que «121» se vea suelto a
+     tamaño de titular. El ancho fijo se reserva para donde los números se
+     alinean en columna, que aquí es el valor de cada barra. */
+  .cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .cifra { background: var(--blanco); border: 1px solid var(--borde); border-radius: var(--radio); padding: 16px; }
+  /* La cifra que sustituye a un gráfico va sin caja: dentro de una tarjeta, una
+     caja dentro de otra es un marco de más. Y separada de la nota que la sigue,
+     o las dos líneas se leen como un párrafo. */
+  .cifra.sin-caja { background: none; border: 0; padding: 0; margin-bottom: 10px; }
+  .cifra-titulo { display: block; font-family: Oswald, Inter, sans-serif; font-size: 13px; letter-spacing: 0.04em; color: var(--apagado); margin-bottom: 4px; }
+  .cifra-valor { display: block; font-family: Anton, Inter, sans-serif; font-size: 32px; line-height: 1.05; color: var(--azul); }
+  .cifra-unidad { display: block; font-size: 13px; color: var(--apagado); margin-top: 2px; }
+
+  /* Barras horizontales. Un solo tono: el largo ya dice quién emite más, y
+     teñir la más larga de otro color sería decidir por quien mira que eso está
+     mal — cuando puede ser la vendedora que más vende. */
+  .barras { list-style: none; padding: 0; margin: 0; }
+  .barras li { padding: 12px 0; }
+  .barras li:focus-visible { outline: 3px solid var(--azul); outline-offset: 2px; border-radius: 8px; }
+  .barra-cabeza { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 5px; }
+  .barra-nombre { font-family: Oswald, Inter, sans-serif; font-size: 16px; }
+  /* Aquí sí `tabular-nums`: estos números se alinean en columna y con ancho
+     variable el ojo no los puede comparar de un vistazo. */
+  .barra-valor { font-family: Anton, Inter, sans-serif; font-size: 18px; color: var(--azul); font-variant-numeric: tabular-nums; }
+  /* El riel es el fondo, un tono por encima de la superficie. Sin rejilla: con
+     el número escrito al lado de cada barra, una rejilla solo añadiría ruido. */
+  .barra-riel { background: var(--hueso); border-radius: 4px; height: 10px; overflow: hidden; }
+  /* Extremo del dato redondeado, base cuadrada: la barra nace del cero y crece
+     hacia la derecha, y redondear el arranque haría que pareciera flotar. */
+  .barra { height: 100%; background: var(--azul); border-radius: 0 4px 4px 0; }
+
+  /* Columnas de altas por semana. Mismo criterio: un tono, sin rejilla. */
+  .columnas { list-style: none; padding: 0; margin: 14px 0 10px; display: flex; gap: 6px; align-items: flex-end; }
+  /* Tope de ancho: con tres o cuatro semanas, `flex: 1` a secas convierte cada
+     columna en un bloque enorme que no se lee como un gráfico. */
+  .columnas li { flex: 1; max-width: 64px; text-align: center; min-width: 0; }
+  .col-valor { display: block; font-family: Anton, Inter, sans-serif; font-size: 15px; color: var(--azul); margin-bottom: 4px; }
+  .col-riel { height: 70px; display: flex; align-items: flex-end; }
+  .col { width: 100%; background: var(--azul); border-radius: 4px 4px 0 0; }
+  .col-etiqueta { display: block; font-size: 11px; color: var(--apagado); margin-top: 5px; font-variant-numeric: tabular-nums; }
+
+  .enlace-accion.sin-margen { padding: 0; }
+
   .lista { list-style: none; padding: 0; margin: 0; }
   .lista li { border-bottom: 1px solid var(--borde); padding: 12px 0; }
   .lista li:last-child { border-bottom: 0; }

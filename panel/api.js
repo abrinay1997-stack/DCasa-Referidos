@@ -58,6 +58,7 @@ export const api = {
   canjes: (estado = 'solicitado') => pedir(`canjes?estado=${estado}`),
   verCanje: (codigo) => pedir(`canjes/${encodeURIComponent(codigo)}`),
   entregarCanje: (codigo) => post(`canjes/${encodeURIComponent(codigo)}/entregar`),
+  reportes: () => pedir('reportes'),
 };
 
 /**

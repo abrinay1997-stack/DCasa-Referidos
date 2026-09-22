@@ -21,7 +21,7 @@
  * ---------------------------------------------------------------------------
  */
 
-import { api, comoFecha, comoPuntos, cuantoLeQueda } from './api.js';
+import { api, comoDolares, comoFecha, comoPuntos, cuantoLeQueda } from './api.js';
 
 // ---------------------------------------------------------------------------
 // Piezas
@@ -300,6 +300,7 @@ export function misPuntos({ socio, saldo, encendido, ir, salir }) {
       el('button', { clase: 'fila', texto: 'Cambiar por premios', onclick: () => ir('#/premios') }),
       el('button', { clase: 'fila', texto: 'Mis premios', onclick: () => ir('#/mis-premios') }),
       el('button', { clase: 'fila', texto: 'Mi actividad', onclick: () => ir('#/actividad') }),
+      el('button', { clase: 'fila', texto: 'Cómo funciona', onclick: () => ir('#/terminos') }),
       // «Invita y gana» no se enseña mientras el servidor no pueda pagar un
       // referido. Prometer una recompensa que el sistema no puede acreditar es
       // peor que no ofrecerla, y este programa se vende entero sobre que las
@@ -615,5 +616,127 @@ export function misCanjes({ canjes, ir }) {
         )
       : el('p', { clase: 'nota', texto: 'Todavía no has cambiado ningún premio.' }),
     el('button', { clase: 'boton secundario', texto: 'Volver', onclick: () => ir('#/puntos') }),
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// Términos
+// ---------------------------------------------------------------------------
+
+/**
+ * Los términos del programa.
+ *
+ * ---------------------------------------------------------------------------
+ * SIN LETRA CHICA, Y ES UNA DECISIÓN DE MARCA
+ *
+ * D'CASA se vende sobre la ausencia de trampa. Unos términos escritos para que
+ * nadie los lea contradirían eso más de lo que protegerían a nadie.
+ *
+ * Así que están en la misma voz que el resto de la app, dicen lo que NO hacen
+ * los puntos antes que lo que sí, y el aviso de privacidad va entero y no
+ * enlazado a otro sitio.
+ *
+ * Lo que se dice aquí es lo que el código hace de verdad. Si alguna vez dejan
+ * de coincidir, lo que está mal es el código.
+ * ---------------------------------------------------------------------------
+ */
+export function terminos({ reglas, ir, hayVuelta }) {
+  const apartado = (titulo, ...parrafos) =>
+    el('section', {}, [
+      el('h2', { texto: titulo }),
+      ...parrafos.map((t) => (typeof t === 'string' ? el('p', { texto: t }) : t)),
+    ]);
+
+  return el('div', {}, [
+    el('div', { clase: 'tarjeta' }, [
+      el('p', { clase: 'antetitulo', texto: 'Programa de socios' }),
+      el('h1', { texto: 'Cómo funciona' }),
+
+      apartado(
+        'Tus puntos no son dinero',
+        'No se cambian por efectivo, no se transfieren a otra persona y no se heredan. ' +
+          'Sirven para lo que dice el catálogo de premios y para nada más.',
+      ),
+
+      apartado(
+        'Cómo los ganas',
+        reglas?.puntosPorDolar
+          ? `Ganas ${reglas.puntosPorDolar} punto por cada dólar que pagas, calculado sobre el ` +
+              'total de tu factura con el ITBMS incluido.'
+          : 'Ganas puntos por cada compra que hagas en la tienda.',
+        reglas?.compraMinimaCentavos
+          ? `Las compras de menos de ${comoDolares(reglas.compraMinimaCentavos)} no suman puntos.`
+          : null,
+        'Una vendedora registra tu compra en el momento. Si no la registró, escríbenos y lo revisamos.',
+      ),
+
+      apartado(
+        'Cómo ganas invitando',
+        reglas?.puntosAlPadrino
+          ? `Cuando alguien se registra con tu código y hace su primera compra, tú ganas ` +
+              `${comoPuntos(reglas.puntosAlPadrino)} puntos` +
+              (reglas.puntosAlAhijado ? ` y esa persona gana ${comoPuntos(reglas.puntosAlAhijado)}.` : '.')
+          : 'Puedes invitar a otras personas con tu código.',
+        'Se paga una sola vez por persona, y solo cuando esa persona compra de verdad. ' +
+          'Registrarse no paga nada.',
+        reglas?.topeDePuntosPorPadrinoAlMes && reglas?.puntosAlPadrino
+          ? `Hay un tope de ${Math.floor(reglas.topeDePuntosPorPadrinoAlMes / reglas.puntosAlPadrino)} ` +
+              'invitaciones cobrables al mes.'
+          : null,
+      ),
+
+      apartado(
+        'Cómo los cambias',
+        'Pides el premio desde aquí, te sale un código y lo enseñas en la tienda. ' +
+          'Los puntos salen de tu cuenta en el momento de pedirlo.',
+        `Tienes ${reglas?.vigenciaDelCodigoHoras ?? 72} horas para pasar. Si no vas, el código vence y ` +
+          'te devolvemos los puntos enteros: puedes volver a pedirlo cuando quieras.',
+        'Un premio ya entregado no se devuelve.',
+      ),
+
+      apartado(
+        '¿Vencen?',
+        reglas?.vencimientoMeses
+          ? `Sí, a los ${reglas.vencimientoMeses} meses. Te avisamos 30 días antes.`
+          : 'No. Tus puntos se quedan ahí. Si algún día eso cambiara, te avisaríamos con ' +
+              '30 días de antelación antes de que venciera ninguno.',
+      ),
+
+      apartado(
+        'Si anulamos una compra',
+        'Si una compra se anula —una devolución, un error al registrarla— los puntos que dio ' +
+          'salen de tu cuenta, y en tu actividad queda escrito por qué. Nunca te quitamos ' +
+          'puntos sin decirte el motivo.',
+      ),
+
+      apartado(
+        'Lo que podemos cambiar',
+        'Podemos cambiar el catálogo de premios y cuántos puntos cuesta cada uno. ' +
+          'Lo que ya pediste se respeta al precio que tenía cuando lo pediste.',
+      ),
+
+      apartado(
+        'Tus datos',
+        'Guardamos tu nombre, tu celular, y si nos los diste, tu cédula, tu correo y el día ' +
+          'y mes de tu cumpleaños. No guardamos el año. Guardamos también qué compraste con ' +
+          'nosotros y cuántos puntos tienes.',
+        'Los usamos solo para administrar este programa. No se los vendemos ni se los damos ' +
+          'a nadie.',
+        el('p', {}, [
+          document.createTextNode(
+            'Puedes pedirnos ver tus datos, corregirlos o borrarlos cuando quieras, como dice ' +
+              'la Ley 81 de 2019 de Panamá. Escríbenos a ',
+          ),
+          el('a', { href: 'mailto:info@dcasapty.com', texto: 'info@dcasapty.com' }),
+          document.createTextNode(' o por WhatsApp al +507 6026-1919.'),
+        ]),
+      ),
+
+      el('p', { clase: 'nota', texto: 'D’CASA Panamá · La Chorrera, Panamá Oeste.' }),
+
+      hayVuelta
+        ? el('button', { clase: 'boton secundario', texto: 'Volver', onclick: () => ir('#/puntos') })
+        : el('button', { clase: 'boton secundario', texto: 'Volver', onclick: () => ir('#/registro') }),
+    ]),
   ]);
 }

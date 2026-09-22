@@ -14,6 +14,7 @@ import {
   pantallaCanjes,
   pantallaSocios,
   problema,
+  reportes,
 } from './vistas.js';
 
 const donde = document.getElementById('app');
@@ -50,7 +51,7 @@ function portada() {
       ),
       tarjeta('Socios', 'Busca, mira su ficha, reinicia un PIN, ajusta sus puntos.', '#/socios'),
       tarjeta('Entregar un premio', 'Teclea el código que trae el socio y entrégaselo.', '#/canjes'),
-      tarjeta('Reportes', 'Cuántos socios entran y cuántos puntos se emiten.', '', false),
+      tarjeta('Reportes', 'Cuánto debe el programa, quién trae gente y qué emite cada vendedora.', '#/reportes'),
     ]),
 
     // El aviso solo aparece mientras la economía esté sin definir. Cuando
@@ -81,6 +82,15 @@ async function pintar() {
   if (ruta === '#/socios') return poner(pantallaSocios({ ir }));
 
   if (ruta === '#/canjes') return poner(pantallaCanjes({ ir }));
+
+  if (ruta === '#/reportes') {
+    poner(cargando());
+    try {
+      return poner(reportes({ datos: await api.reportes(), ir }));
+    } catch (fallo) {
+      return poner(problema(fallo.message, () => pintar()));
+    }
+  }
 
   const detalle = /^#\/socio\/([^/]+)$/.exec(ruta);
   if (detalle) {

@@ -46,8 +46,9 @@ npm run tipos        # el Worker compila
 npm run build        # los tres anteriores + arma publico/
 ```
 
-Los tres avisos de `verificar` sobre `PENDIENTE` son correctos y esperados
-mientras Marcial no responda. **No los hagas callar rellenando los valores.**
+Hoy `verificar` pasa sin avisos: la economía está decidida entera. Si mañana
+aparece un `null` o un `PENDIENTE` nuevo, el aviso es correcto y esperado —
+**no lo hagas callar rellenando el valor tú.**
 
 **Y corre esto de verdad antes de empujar a `main`**, porque desde ahí ya no lo
 revisa nadie: cada empuje dispara `entregar.yml`, que prueba, migra la base y
@@ -97,8 +98,10 @@ migraciones/    El esquema, con el porqué de cada decisión en la cabecera.
 herramientas/   verificar.mjs — la marca y las invariantes, defendidas.
 scripts/        construir.mjs — verificar → probar → construir. Nunca a medias.
 pruebas/        Las reglas del dinero, caso por caso.
-index.html      La app del socio (fase 1: portada).
-panel/          El panel del equipo (fase 1: portada).
+index.html      La app del socio. Sin construir y sin dependencias.
+socio/          Sus pantallas: puntos, actividad, invita, premios, términos.
+panel/          El panel del equipo: compras, socios, canjes, reportes.
+hub/            El icono, la tipografía y el manifest de la app instalable.
 ```
 
 ---
@@ -121,13 +124,18 @@ cliente de D'CASA.
 
 ## 6. Por dónde sigue
 
-La fase 1 está hecha. La 2 es **socios y puntos**: alta, PIN con PBKDF2 y
-pimienta, sesión firmada con revocación por cambio de PIN, candado contra fuerza
-bruta, registro de compra por la vendedora y el libro mayor.
+**Las cinco fases están hechas.** El programa acredita, canjea, vence, felicita
+y reporta. Lo que queda abierto no es código y está en el README, en «Lo que
+falta preguntarle a Marcial»: el tope por compra, qué productos entran como
+premio, qué correos más abren el panel y adónde apuntan los QR impresos.
 
-El detalle de cada fase, con su criterio de «hecho», está en el README.
+**Una advertencia sobre el orden**, por si añades algo: no construyas la
+pantalla antes que el libro mayor. Todo lo que ve el socio es una vista del
+libro, y montarlo al revés lleva a guardar un saldo en algún sitio «mientras
+tanto» — que es exactamente la columna que la regla 2 prohíbe.
 
-**Una advertencia sobre el orden:** no construyas las pantallas antes que el
-libro mayor. Todo lo que ve el socio es una vista del libro, y montarlo al revés
-lleva a guardar un saldo en algún sitio «mientras tanto» — que es exactamente la
-columna que la regla 2 prohíbe.
+**Y otra sobre los gráficos:** un dato único dibujado como barra mide siempre el
+100 % de sí mismo. Los dos gráficos del panel —vendedoras y altas por semana—
+caen a una cifra sola cuando no hay con qué comparar, y eso no es un caso
+límite: es lo que se ve las primeras semanas, que es justo cuando más se mira
+esa pantalla.

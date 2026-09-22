@@ -66,7 +66,7 @@
 
   "cumpleanos": {
     "puntos": 500,
-    "$puntos": "500 puntos = $5, una vez al año. TODAVÍA NO SE ENTREGA: el trabajo que los acredita llega en la fase 5. Configurado aquí para que cuando llegue no haya que decidir nada.",
-    "$exigeCompraPrevia": "Pendiente de implementar: el regalo debe exigir al menos una compra registrada, o se crean cuentas solo para cobrarlo."
+    "$puntos": "500 puntos = $5, una vez al año. Los acredita el reloj del servidor cada madrugada, no una pantalla: nadie tiene que acordarse.",
+    "$exigeCompraPrevia": "Exige al menos una compra que haya dado puntos y que no esté anulada, y se entrega una sola vez por año natural. Sin ese candado se abren cuentas solo para cobrar el regalo."
   }
 }
