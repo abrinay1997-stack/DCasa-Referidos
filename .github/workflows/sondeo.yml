@@ -1,0 +1,83 @@
+# Preguntarle a lo publicado qué pieza suya está rota, sin desplegar nada.
+#
+# ── PARA QUÉ ───────────────────────────────────────────────────────────────
+#
+# «Comprobar en vivo» (en `entregar.yml`) dice SI algo está roto, y corre solo
+# después de publicar. Esto dice CUÁL, y corre cuando uno quiera, en veinte
+# segundos, sin tocar el Worker.
+#
+# Cada llamada de aquí abajo está elegida para aislar UNA pieza:
+#
+#   · el pulso y los términos     el Worker corre y lee sus reglas. Ni una de
+#                                 las dos toca la base ni deriva nada.
+#   · el padrino de un código     la BASE contesta. No deriva ningún PIN.
+#   · entrar sin número           se DERIVA UN PIN. No toca la base: con el
+#                                 teléfono vacío, `entrar` salta la consulta y
+#                                 va directo al señuelo.
+#   · entrar con un número        las dos cosas juntas, que es lo que hace de
+#                                 verdad un cliente en el mostrador.
+#
+# Si la tercera pasa y la cuarta no, el problema es derivar el PIN. Si es al
+# revés, es la base. Si fallan las dos, es el Worker entero. Eso es lo que no
+# se puede averiguar mirando el repositorio.
+#
+# ── NO ESCRIBE NADA, Y NO ES CASUALIDAD ────────────────────────────────────
+#
+# El número es `00000000`: no empieza por [234567], así que `telefonoValido` lo
+# rechaza y NINGUNA ficha puede tenerlo. Con un celular real corríamos el
+# riesgo de sumarle un intento fallido a alguien, y a los cinco su cuenta se
+# bloquea sola.
+#
+# El código es `DCAZZZZZZ`: tiene la forma buena —si no, la ruta contesta sin
+# mirar la base y no probaría nada— y no es el de nadie.
+
+name: Sondear lo publicado
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sondear:
+    name: Qué contesta cada pieza
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preguntar
+        env:
+          SITIO: https://dcasa-socios.abrinay1997.workers.dev
+        run: |
+          set -u
+
+          mirar() {
+            nombre="$1"; esperado="$2"; metodo="$3"; ruta="$4"; cuerpo="${5:-}"
+
+            if [ -n "$cuerpo" ]; then
+              estado=$(curl -sS -o /tmp/r -w '%{http_code}' --max-time 40 \
+                -X "$metodo" -H 'Content-Type: application/json' --data "$cuerpo" \
+                "$SITIO$ruta" || echo 000)
+            else
+              estado=$(curl -sS -o /tmp/r -w '%{http_code}' --max-time 40 \
+                -X "$metodo" "$SITIO$ruta" || echo 000)
+            fi
+
+            marca="✅"
+            [ "$estado" = "$esperado" ] || marca="❌"
+            echo "$marca $nombre — esperaba $esperado, contestó $estado"
+            echo "   $(head -c 400 /tmp/r)"
+            echo ""
+          }
+
+          echo "### Lo publicado, pieza por pieza" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          {
+            mirar "el Worker corre"        200 GET  "/api/salud"
+            mirar "lee sus reglas"         200 GET  "/api/terminos"
+            mirar "LA BASE contesta"       200 GET  "/api/socio/padrino?r=DCAZZZZZZ"
+            mirar "SE DERIVA UN PIN"       401 POST "/api/socio/entrar" '{"telefono":"","pin":"418290"}'
+            mirar "las dos cosas juntas"   401 POST "/api/socio/entrar" '{"telefono":"00000000","pin":"418290"}'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
