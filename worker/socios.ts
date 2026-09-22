@@ -367,7 +367,7 @@ async function reclamar(
     throw new ErrorPeticion(
       403,
       'suspendida',
-      'Esa ficha está suspendida. Escríbenos por WhatsApp y lo revisamos.',
+      'Tu cuenta está suspendida. Escríbenos por WhatsApp y lo revisamos.',
     );
   }
 
@@ -667,7 +667,7 @@ export async function reiniciarPin(
     throw new ErrorPeticion(
       409,
       'invalida',
-      'Esa ficha todavía no está en el programa: no tiene PIN que reiniciar. ' +
+      'Ese cliente todavía no está en el programa: no tiene PIN que reiniciar. ' +
         'Que escanee el QR y la reclame; el código que le van a pedir es este.',
       fila.codigo,
     );

@@ -64,6 +64,58 @@
 
   main { max-width: 640px; margin: 0 auto; padding: 18px 16px 64px; }
 
+  /* ---------------------------------------------------------------------
+     ESCRITORIO
+     El panel se escribió para el móvil, que es donde se usa en la tienda. A
+     1280px eso dejaba una columna de 640px en medio de la pantalla y el 50 %
+     del ancho en blanco: la vendedora tecleaba una venta sin ver el total y
+     tenía que bajar para saber cuánto cobrar.
+     Esto no «estira» la columna: reparte el contenido en el ancho que hay.
+     --------------------------------------------------------------------- */
+  @media (min-width: 900px) {
+    main { max-width: 1100px; padding: 24px 24px 72px; }
+
+    /* La venta, en dos columnas: lo que se teclea a la izquierda, el total
+       pegado arriba a la derecha mientras se teclea. */
+    .venta-doble {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(300px, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .venta-doble > h1,
+    .venta-doble > .volver-ancho { grid-column: 1 / -1; }
+    .venta-derecha { position: sticky; top: 24px; }
+
+    /* El comprobante NO se ensancha: es un documento, y una línea de texto de
+       mil píxeles no se lee. Se queda a ancho de papel y centrado. */
+    .papel { max-width: 720px; margin-left: auto; margin-right: auto; }
+    .sin-imprimir { max-width: 720px; margin-left: auto; margin-right: auto; }
+
+    /* Las listas largas se reparten en rejilla, no en columnas de texto.
+       `columns: 2` llena la primera columna entera antes de pasar a la
+       segunda: para una lista alfabética eso obliga a leer hacia abajo y
+       volver arriba. Una rejilla se lee de izquierda a derecha, como todo lo
+       demás. */
+    .lista-resultados {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+      gap: 0 18px;
+      align-content: start;
+    }
+    /* El paginador y el aviso de lista vacía ocupan el ancho entero: son de la
+       lista, no un elemento más de ella. */
+    .lista-resultados > .paginas,
+    .lista-resultados > .nota,
+    .lista-resultados > .aviso { grid-column: 1 / -1; }
+  }
+
+  /* En pantallas muy anchas, tres tarjetas por fila en la portada y en los
+     reportes. Lo hace `auto-fit`, que ya estaba: solo hacía falta el ancho. */
+  @media (min-width: 1200px) {
+    main { max-width: 1240px; }
+  }
+
   .tarjeta {
     background: var(--blanco);
     border: 1px solid var(--borde);
@@ -519,6 +571,12 @@
     line-height: 1.5;
   }
   .papel-legal b { color: var(--azul); }
+  .papel-emisor {
+    margin: 18px 0 0; padding-top: 12px; border-top: 1px solid var(--borde);
+    display: flex; flex-direction: column; gap: 1px;
+    font-size: 12px; color: var(--apagado);
+  }
+  .papel-emisor-nombre { font-size: 13px; color: var(--tinta); }
   .papel-pie { margin: 8px 0 0; font-size: 12px; color: var(--apagado); }
 
   /* Al imprimir se va todo menos el papel: el cabecero azul, los botones y el

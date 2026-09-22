@@ -1,0 +1,26 @@
+{
+  "$": "Quién emite el comprobante. Lo que va impreso en el papel que se lleva el cliente.",
+
+  "$porQue": "Un documento que identifica al COMPRADOR y desglosa un impuesto, pero no identifica a quien lo cobró, es el papel más débil que se puede entregar. La DGI, al recordar qué lleva una factura con la entrada en vigencia de la Ley 473 de 2025, nombra expresamente el RUC y el domicilio del comercio que emite el documento. Esto no es una factura fiscal y no le aplica esa lista, pero un documento de respaldo que no dice de quién es no respalda nada.",
+
+  "nombre": "D'CASA Panamá",
+  "$nombre": "Como se le conoce. Lo que va grande, junto al logo.",
+
+  "razonSocial": "PENDIENTE",
+  "$razonSocial": "El nombre legal completo, tal como está inscrito. Puede no ser «D'CASA Panamá».",
+
+  "ruc": "PENDIENTE",
+  "$ruc": "El RUC con su DV, tal como aparece en la factura fiscal de la tienda. Mientras diga PENDIENTE, el comprobante no lo imprime y `node herramientas/verificar.mjs` avisa. No se inventa: un RUC equivocado impreso en el papel de un cliente es peor que ninguno.",
+
+  "domicilio": "La Chorrera, frente al parque Libertadores",
+  "$domicilio": "La dirección fiscal. Hoy está la referencia de ubicación que ya usaba el pie del comprobante; si la dirección inscrita es otra, se corrige aquí.",
+
+  "telefono": "PENDIENTE",
+  "$telefono": "El de la tienda, para que el cliente sepa dónde llamar por una entrega.",
+
+  "moneda": "USD",
+  "$moneda": "En Panamá circulan el balboa y el dólar a la par. El comprobante lo dice para que un papel de $1,070 no deje dudas.",
+
+  "regimenFiscal": "PENDIENTE",
+  "$regimenFiscal": "«equipoFiscal» o «facturaElectronica». DECIDE LO QUE DICE EL PAPEL. Hasta que se sepa, el comprobante dice «la factura fiscal de esta compra es la N.º X» sin afirmar de dónde salió: afirmar «emitida por el equipo fiscal» cuando D'CASA esté en facturación electrónica sería escribir algo falso en el papel de un cliente. Ojo: la Resolución 201-6299 de 2025, vigente desde enero de 2026, limita el facturador gratuito de la DGI a B/.36,000 de ingresos anuales; una mueblería lo supera, así que si ya está en electrónica necesita un PAC."
+}

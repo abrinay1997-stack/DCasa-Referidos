@@ -411,6 +411,113 @@ vendedoras. La pantalla de clientes lo recuerda mientras siga vacío.
 
 ---
 
+## Lo que encontró la auditoría
+
+El sistema se auditó entero en cinco frentes: la economía de los puntos, la
+seguridad, la normativa fiscal panameña, las conexiones entre piezas, y cómo se
+ve y se usa. Esto es lo que salió.
+
+### El agujero caro: anular no deshacía el referido
+
+Anular una venta devolvía los puntos de la compra y dejaba en pie los del
+referido. Una venta de $1,070 a un invitado pagaba 500 al padrino y 250 al
+invitado; al anularla, esos 750 se quedaban donde estaban.
+
+Dos problemas a la vez. **Un fraude repetible:** emitir una venta a nombre de un
+conocido, cobrar los $7.50 en puntos y anularla — cincuenta veces, que es el
+tope de ahijados, son $375 en premios por ventas que nunca ocurrieron. Y **un
+cliente perjudicado en silencio:** el sello quedaba puesto, así que la primera
+compra de verdad de esa persona ya no pagaba a nadie, y el padrino se quedaba
+sin su bono sin que nadie pudiera explicarle por qué.
+
+La causa de raíz: los asientos del referido no llevaban escrito de qué compra
+salieron, así que la anulación no podía encontrarlos. Ahora la llevan, las dos
+anulaciones los revierten y sueltan el sello, y hay una prueba que lo vigila.
+
+### El programa no se podía gastar
+
+Los premios y las ventas vivían en dos mundos que no se hablaban. El socio
+canjeaba «$10 de descuento», le salía un código, lo enseñaba en la tienda, y la
+vendedora tecleaba 10.00 a mano en el campo de descuento. El mismo código valía
+en dos ventas, se podía teclear un importe distinto del que valía el premio, y
+el historial no distinguía un canje de una rebaja de mostrador.
+
+Ahora el código se teclea en la venta y el servidor lo cobra: comprueba que sea
+de ese cliente, que no esté usado, y cuánto vale según el catálogo; lo marca
+entregado en el mismo batch que la venta; y lo deja impreso en el comprobante
+con su código.
+
+### El comprobante, corregido
+
+| Qué pasaba | Qué se hizo |
+|---|---|
+| Con descuento, el ITBMS no era el 7 % de ninguna cifra impresa: faltaba la base gravada | Se imprime la base, y «Subtotal» pasa a llamarse «Artículos» — en una factura panameña el subtotal ES la base gravada |
+| La leyenda «no es una factura fiscal» estaba al pie, a 12 px y en gris | Va arriba, al mismo cuerpo que el resto, enmarcada — y añade que no sirve para sustentar crédito fiscal ni gasto deducible |
+| No identificaba a quien lo emite | `datos/emisor.json`, congelado dentro de cada documento. Lo que falte se pide (ver abajo) |
+| No llevaba hora ni moneda | Las dos |
+
+### Las fechas decían dos días distintos
+
+El papel imprimía la fecha de Panamá y el historial recortaba el ISO en UTC. Una
+venta del sábado a las 7:30 de la tarde salía como domingo en el historial, en
+la ficha y en los reportes. Ahora hay `diaEnPanama()` y nadie recorta un ISO.
+
+### Dos puertas a la misma gente
+
+`#/clientes` y `#/socios` eran dos buscadores distintos que llevaban a dos
+pantallas distintas de la misma persona, y desde una no se llegaba a lo de la
+otra. Ahora hay una sola lista, y el PIN y los ajustes cuelgan del cliente.
+
+### El escritorio desperdiciaba la mitad de la pantalla
+
+Medido: cada pantalla usaba 640 px de una ventana de 1280. El panel se escribió
+para el móvil —que es donde se usa en la tienda— y en escritorio dejaba una
+columna en medio con el 50 % en blanco: la vendedora tecleaba una venta sin ver
+el total. Ahora la venta va en dos columnas con el total fijo al lado, y las
+listas largas se reparten en rejilla.
+
+### Lo que salió limpio
+
+- **Sin inyección SQL.** El único SQL que se arma dinámicamente —el buscador de
+  clientes— compone condiciones fijas y pasa todos los valores por `bind()`.
+- **Sin XSS.** Ni un `innerHTML` en las tres zonas; todo va por `textContent`.
+- **Sin fugas entre clientes.** Un socio no puede leer el canje de otro (404),
+  la lista de referidos no enseña teléfonos, y el buscador del panel enmascara
+  el celular.
+- **Sin desbordes a 360 px** en ninguna pantalla, y **todo el texto por encima
+  de 4.5:1** de contraste.
+- **Los topes del referido se aplican de verdad** —el de ahijados y el mensual—
+  y la aritmética del ITBMS es exacta: enteros de principio a fin.
+
+### Lo que queda abierto, y no es código
+
+Además de lo de la sección siguiente:
+
+1. **El régimen fiscal de D'CASA.** ¿Equipo fiscal autorizado o facturación
+   electrónica con PAC? De eso depende lo que el papel puede afirmar. Mientras
+   no se sepa, el comprobante dice «la factura fiscal de esta compra es la
+   N.º X» sin afirmar de dónde salió. Ojo: la Resolución 201-6299 de 2025,
+   vigente desde enero de 2026, limita el facturador gratuito de la DGI a
+   B/.36,000 anuales — una mueblería lo supera.
+2. **El tratamiento del canje de puntos, por escrito.** Hoy rebaja la base del
+   ITBMS, que es lo que hace la caja cuando se teclea como descuento, y lo
+   respalda el Decreto 84 de 2005. La otra postura —tratarlo como medio de
+   pago— deja la base intacta. La diferencia es de 7 centavos por dólar
+   canjeado. **Que lo confirme el contador antes de que esto lleve volumen.**
+3. **Falta la forma de pago.** Cuando el cliente paga con tarjeta, el banco
+   retiene el 50 % del ITBMS de esa venta y eso es crédito fiscal de D'CASA;
+   hoy el sistema no sabe qué ventas llevan retención.
+4. **Faltan las devoluciones parciales.** Solo se puede anular la venta entera.
+   Devolver un sofá de una venta de cinco artículos obliga a anularlo todo, y la
+   norma pide nota de crédito con las líneas devueltas.
+5. **Faltan los abonos.** Una mueblería aparta muebles con un anticipo; hoy hay
+   que emitir la venta completa de una vez, y los puntos se acreditan enteros
+   en ese momento.
+6. **La base no tiene respaldo.** Todo el historial vive solo en D1 y hay que
+   poder producirlo cinco años después.
+
+---
+
 ## Lo que falta preguntarle a Marcial
 
 La economía ya está decidida y vive en [`datos/puntos.json`](datos/puntos.json):
@@ -419,6 +526,11 @@ registrarse, 500 al padrino y 250 al ahijado con la primera compra, 500 de
 cumpleaños, sin vencimiento. Nada de eso se inventó aquí.
 
 Quedan cuatro cosas, y ninguna bloquea el código:
+
+0. **Los datos del emisor**, que hoy faltan en el comprobante: razón social,
+   RUC con su DV, teléfono y el régimen fiscal. Están todos en su factura
+   fiscal. Van en `datos/emisor.json`, y `node herramientas/verificar.mjs`
+   avisa mientras sigan en `PENDIENTE`.
 
 1. **Confirmar el tope de 50,000 puntos por compra** (`acumulacion.puntosMaximosPorCompra`).
    No es una regla comercial: es un guardia contra el dedo que teclea $50,000 en

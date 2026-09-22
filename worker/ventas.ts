@@ -37,10 +37,45 @@ import * as referidos from './referidos';
 import * as canjes from './canjes';
 import { fichaDeVenta, sentenciasDeFichaNueva, type ClienteDeVenta } from './clientes';
 import { diaEnPanama, hoyEnPanama } from './reloj';
+import emisorCrudo from '../datos/emisor.json';
 
 /** Lo que se guarda dentro de `ventas.documento`, y lo que se reimprime. */
+/**
+ * Quién emite, congelado dentro del documento.
+ *
+ * Va dentro y no se lee del archivo al reimprimir, por lo mismo que los datos
+ * del cliente: si D'CASA cambia de domicilio o corrige su razón social, los
+ * comprobantes ya entregados tienen que seguir diciendo lo que decían ese día.
+ *
+ * Lo que está en `PENDIENTE` no viaja: un campo vacío en el papel es mejor que
+ * un dato inventado, y `herramientas/verificar.mjs` avisa mientras falte.
+ */
+export interface EmisorDelDocumento {
+  nombre: string;
+  razonSocial?: string;
+  ruc?: string;
+  domicilio?: string;
+  telefono?: string;
+  moneda: string;
+}
+
+function emisorDeHoy(): EmisorDelDocumento {
+  const e = emisorCrudo as Record<string, string>;
+  const puesto = (v: string | undefined) => (v && v !== 'PENDIENTE' ? v : undefined);
+  return {
+    nombre: e.nombre ?? 'D’CASA Panamá',
+    razonSocial: puesto(e.razonSocial),
+    ruc: puesto(e.ruc),
+    domicilio: puesto(e.domicilio),
+    telefono: puesto(e.telefono),
+    moneda: e.moneda ?? 'USD',
+  };
+}
+
 export interface DocumentoVenta {
   numero: string;
+  /** Quién emite, tal como estaba el día de la venta. */
+  emisor: EmisorDelDocumento;
   /** La fecha que se imprime, en hora de Panamá. */
   fecha: string;
   emitidaEn: string;
@@ -193,7 +228,7 @@ export async function emitir(
     throw new ErrorPeticion(
       403,
       'suspendida',
-      'Esa ficha está suspendida. No se le puede emitir hasta que se reactive.',
+      'Ese cliente está suspendido. No se le puede vender hasta que se reactive.',
     );
   }
 
@@ -309,6 +344,7 @@ export async function emitir(
 
   const documento: DocumentoVenta = {
     numero,
+    emisor: emisorDeHoy(),
     fecha,
     emitidaEn: ahora,
     vendedora,
@@ -391,14 +427,14 @@ export async function emitir(
       throw new ErrorPeticion(
         409,
         'repetida',
-        'Ese celular ya tiene ficha. Búscala por el número y emite sobre ella.',
+        'Ese celular ya tiene un cliente. Búscalo por el número y véndele a él.',
       );
     }
     if (choco(error, 'socios.cedula_digitos')) {
       throw new ErrorPeticion(
         409,
         'repetida',
-        'Esa cédula ya tiene ficha. Búscala por la cédula y emite sobre ella.',
+        'Esa cédula ya tiene un cliente. Búscalo por la cédula y véndele a él.',
       );
     }
     throw error;

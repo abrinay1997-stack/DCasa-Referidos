@@ -26,7 +26,7 @@
  * en código.
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -389,6 +389,40 @@ function reglaFichaSinPin() {
   }
 }
 
+/**
+ * Los datos del emisor que todavía faltan en el comprobante.
+ *
+ * Es un AVISO y no un error, a propósito: el sistema funciona sin ellos y
+ * parar el despliegue por un RUC que nadie ha dado aún sería peor. Pero el
+ * papel que se lleva el cliente identifica al COMPRADOR y desglosa un
+ * impuesto, y no dice de quién es — así que esto tiene que seguir doliendo
+ * hasta que alguien lo rellene.
+ *
+ * `regimenFiscal` es el que más importa de los tres: decide si el papel puede
+ * afirmar que la factura salió de un equipo fiscal. Afirmarlo cuando D'CASA
+ * esté en facturación electrónica sería escribir algo falso en el papel de un
+ * cliente, así que hasta saberlo el comprobante no lo dice.
+ */
+function reglaEmisor() {
+  const ruta = join(RAIZ, 'datos/emisor.json');
+  if (!existsSync(ruta)) {
+    error('datos/emisor.json', 0, 'Falta el archivo con los datos de quien emite el comprobante.');
+    return;
+  }
+  const e = JSON.parse(readFileSync(ruta, 'utf8'));
+  const faltan = ['razonSocial', 'ruc', 'domicilio', 'telefono', 'regimenFiscal'].filter(
+    (k) => !e[k] || e[k] === 'PENDIENTE',
+  );
+  if (!faltan.length) return;
+
+  aviso(
+    'datos/emisor.json',
+    0,
+    `El comprobante sale sin ${faltan.join(', ')}. Mientras falten, ese papel no dice ` +
+      `de quién es. Pregúntaselo a Marcial: son datos que están en su factura fiscal.`,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // 5. La forma de los dos datos de Access
 // ---------------------------------------------------------------------------
@@ -630,6 +664,7 @@ reglaComentarios();
 reglaTipografia();
 reglaSinSaldo();
 reglaFichaSinPin();
+reglaEmisor();
 reglaPuerta();
 reglaEconomia();
 reglaSecretos();

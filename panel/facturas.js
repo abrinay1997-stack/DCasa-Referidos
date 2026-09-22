@@ -510,14 +510,27 @@ export function nuevaVenta({ ir, encendido, prefijado = null }) {
   pintarPremios();
   pintarTotales();
 
-  rellenar(pantalla, 
+  // EN ESCRITORIO, DOS COLUMNAS: lo que se teclea a la izquierda y el total a
+  // la derecha, pegado arriba. En el móvil es una sola columna y el orden del
+  // árbol es el que se lee, así que esto no cambia nada allí.
+  //
+  // Importa más de lo que parece: a 1280px, con una sola columna, la vendedora
+  // tecleaba los artículos sin ver el total y tenía que bajar para saber cuánto
+  // cobrar. Ahora lo tiene al lado mientras teclea.
+  const derecha = el('div', { clase: 'venta-derecha' }, [cajaTotales, formulario]);
+
+  pantalla.className = 'venta-doble';
+  rellenar(
+    pantalla,
     el('h1', { texto: 'Nueva venta' }),
-    cajaCliente,
-    cajaLineas,
-    cajaPremios,
-    cajaTotales,
-    formulario,
-    el('button', { clase: 'boton secundario', type: 'button', texto: 'Volver', onclick: () => ir('#/') }),
+    el('div', { clase: 'venta-izquierda' }, [cajaCliente, cajaLineas, cajaPremios]),
+    derecha,
+    el('button', {
+      clase: 'boton secundario volver-ancho',
+      type: 'button',
+      texto: 'Volver',
+      onclick: () => ir('#/'),
+    }),
   );
 
   return pantalla;
@@ -704,7 +717,7 @@ export function comprobante({ datos, ir, admin }) {
         : null,
       renglonTotal(`ITBMS ${d.itbmsPorcentaje} %`, comoDolares(d.totales.itbmsCentavos)),
       el('div', { clase: 'total-fila grande' }, [
-        el('span', { clase: 'total-que', texto: 'Total' }),
+        el('span', { clase: 'total-que', texto: `Total (${d.emisor?.moneda ?? 'USD'})` }),
         el('span', { clase: 'total-cuanto', texto: comoDolares(d.totales.totalCentavos) }),
       ]),
     ]),
@@ -722,7 +735,16 @@ export function comprobante({ datos, ir, admin }) {
         ])
       : null,
 
-    el('p', { clase: 'papel-pie', texto: 'D’CASA Panamá · La Chorrera, frente al parque Libertadores' }),
+    // QUIÉN EMITE. Un documento que identifica al comprador y desglosa un
+    // impuesto, pero no dice de quién es, no respalda nada. Lo que esté en
+    // PENDIENTE en datos/emisor.json no viaja y aquí no se pinta: un dato
+    // inventado en el papel de un cliente es peor que un hueco.
+    el('div', { clase: 'papel-emisor' }, [
+      el('span', { clase: 'papel-emisor-nombre', texto: (d.emisor?.razonSocial || d.emisor?.nombre) ?? 'D’CASA Panamá' }),
+      d.emisor?.ruc ? el('span', { texto: `RUC ${d.emisor.ruc}` }) : null,
+      d.emisor?.domicilio ? el('span', { texto: d.emisor.domicilio }) : null,
+      d.emisor?.telefono ? el('span', { texto: d.emisor.telefono }) : null,
+    ]),
   ]);
 
   const acciones = el('div', { clase: 'tarjeta sin-imprimir' }, [
@@ -828,7 +850,7 @@ function botonAnular(numero, ir) {
 
 export function historialVentas({ ir }) {
   const pantalla = el('div', {});
-  const lista = el('div', { clase: 'tarjeta' });
+  const lista = el('div', { clase: 'tarjeta lista-resultados' });
   let pagina = 1;
   let texto = '';
   let temporizador;

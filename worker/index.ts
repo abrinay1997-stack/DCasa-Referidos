@@ -596,7 +596,7 @@ function exigirAdmin(correo: string, env: Env): void {
   throw new ErrorPeticion(
     403,
     'sin-permiso',
-    'Borrar una ficha del todo no está a tu alcance. Pídeselo a quien administra el panel.',
+    'Borrar un cliente para siempre no está a tu alcance. Pídeselo a quien administra el panel.',
   );
 }
 
@@ -622,7 +622,7 @@ async function fichaEntera(base: D1Database, codigo: string) {
     .bind(codigo)
     .first<Parameters<typeof clientes.comoFicha>[0]>();
 
-  if (!fila) throw new ErrorPeticion(404, 'no-encontrada', 'Esa ficha no existe.');
+  if (!fila) throw new ErrorPeticion(404, 'no-encontrada', 'Ese cliente no existe.');
 
   const [saldo, bitacora, sus, susVentas, padrino, traidos] = await Promise.all([
     saldoDe(base, codigo),

@@ -188,7 +188,7 @@ export async function fichaDeVenta(
       throw new ErrorPeticion(
         409,
         'repetida',
-        'Esa ficha está en la papelera. Restáurala antes de emitirle una venta.',
+        'Ese cliente está en la papelera. Devuélvelo a la lista antes de venderle.',
       );
     }
     return existente(fila);
@@ -215,7 +215,7 @@ export async function fichaDeVenta(
       throw new ErrorPeticion(
         409,
         'repetida',
-        'Ese celular tiene una ficha en la papelera. Restáurala y vuelve a emitir.',
+        'Ese celular ya tiene un cliente en la papelera. Devuélvelo a la lista y vuelve a emitir.',
         yaEstaba.codigo,
       );
     }
@@ -507,9 +507,9 @@ export async function corregir(
   quien: string,
 ): Promise<{ cliente: Ficha }> {
   const fila = await porCodigoIncluyendoPapelera(base, codigo);
-  if (!fila) throw new ErrorPeticion(404, 'no-encontrada', 'Esa ficha no existe.');
+  if (!fila) throw new ErrorPeticion(404, 'no-encontrada', 'Ese cliente no existe.');
   if (fila.eliminado_en) {
-    throw new ErrorPeticion(409, 'repetida', 'Esa ficha está en la papelera. Restáurala primero.');
+    throw new ErrorPeticion(409, 'repetida', 'Ese cliente está en la papelera. Devuélvelo a la lista primero.');
   }
 
   const datos = await cuerpoJson<{
@@ -524,7 +524,7 @@ export async function corregir(
   }>(peticion);
 
   const nombre = (datos.nombre ?? fila.nombre).trim();
-  if (!nombre) throw new ErrorPeticion(400, 'invalida', 'La ficha necesita un nombre.');
+  if (!nombre) throw new ErrorPeticion(400, 'invalida', 'El cliente necesita un nombre.');
 
   const correo = (datos.correo ?? fila.correo).trim();
   if (correo && !pareceCorreo(correo)) {
@@ -574,7 +574,7 @@ export async function corregir(
       throw new ErrorPeticion(
         409,
         'repetida',
-        'Esa cédula ya está en otra ficha.',
+        'Esa cédula ya está en otro cliente.',
         otra ? `Es la de ${otra.nombre}, ${otra.codigo}.` : undefined,
       );
     }
@@ -608,9 +608,9 @@ export async function retirar(
   quien: string,
 ): Promise<{ codigo: string; retirada: true }> {
   const fila = await porCodigoIncluyendoPapelera(base, codigo);
-  if (!fila) throw new ErrorPeticion(404, 'no-encontrada', 'Esa ficha no existe.');
+  if (!fila) throw new ErrorPeticion(404, 'no-encontrada', 'Ese cliente no existe.');
   if (fila.eliminado_en) {
-    throw new ErrorPeticion(409, 'repetida', 'Esa ficha ya estaba en la papelera.');
+    throw new ErrorPeticion(409, 'repetida', 'Ese cliente ya estaba en la papelera.');
   }
 
   await base
@@ -626,9 +626,9 @@ export async function restaurar(
   codigo: string,
 ): Promise<{ codigo: string; restaurada: true }> {
   const fila = await porCodigoIncluyendoPapelera(base, codigo);
-  if (!fila) throw new ErrorPeticion(404, 'no-encontrada', 'Esa ficha no existe.');
+  if (!fila) throw new ErrorPeticion(404, 'no-encontrada', 'Ese cliente no existe.');
   if (!fila.eliminado_en) {
-    throw new ErrorPeticion(409, 'repetida', 'Esa ficha no estaba en la papelera.');
+    throw new ErrorPeticion(409, 'repetida', 'Ese cliente no estaba en la papelera.');
   }
 
   await base
@@ -666,12 +666,12 @@ export async function borrarDeVerdad(
   quien: string,
 ): Promise<{ codigo: string; borrada: true }> {
   const fila = await porCodigoIncluyendoPapelera(base, codigo);
-  if (!fila) throw new ErrorPeticion(404, 'no-encontrada', 'Esa ficha no existe.');
+  if (!fila) throw new ErrorPeticion(404, 'no-encontrada', 'Ese cliente no existe.');
   if (!fila.eliminado_en) {
     throw new ErrorPeticion(
       409,
       'invalida',
-      'Primero hay que retirarla a la papelera. Borrar de verdad es el segundo paso, no el primero.',
+      'Primero hay que quitarlo de la lista. Borrar para siempre es el segundo paso, no el primero.',
     );
   }
 
@@ -704,8 +704,8 @@ export async function borrarDeVerdad(
     throw new ErrorPeticion(
       409,
       'invalida',
-      'Esa ficha no se puede borrar del todo: tiene historial colgando.',
-      `Tiene ${cuelga.join(', ')}. En la papelera ya no sale en ninguna lista ni puede entrar.`,
+      'Ese cliente no se puede borrar: tiene historial guardado.',
+      `Tiene ${cuelga.join(', ')}. En la papelera ya no sale en ninguna lista ni puede entrar a su cuenta.`,
     );
   }
 

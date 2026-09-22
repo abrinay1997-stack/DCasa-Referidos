@@ -12,7 +12,6 @@ import {
   ficha,
   nuevaCompra,
   pantallaCanjes,
-  pantallaSocios,
   problema,
   reportes,
 } from './vistas.js';
@@ -58,7 +57,6 @@ function portada() {
         'Sin detallar los artículos: la factura y el monto, y ya. Para lo que se cargue después.',
         '#/compra',
       ),
-      tarjeta('Socios', 'El PIN, el candado y los ajustes de puntos.', '#/socios'),
       tarjeta('Entregar un premio', 'Teclea el código que trae el socio y entrégaselo.', '#/canjes'),
       tarjeta('Reportes', 'Cuánto debe el programa, quién trae gente y qué emite cada vendedora.', '#/reportes'),
     ]),
@@ -88,7 +86,15 @@ async function pintar() {
     return poner(nuevaCompra({ ir, encendido: estado.encendido }));
   }
 
-  if (ruta === '#/socios') return poner(pantallaSocios({ ir }));
+  // `#/socios` era una SEGUNDA puerta a la misma gente: otro buscador que
+  // llevaba a otra pantalla del mismo cliente. Con dos listas, una vendedora
+  // que busca a alguien acaba en una u otra según por dónde entró, y desde una
+  // no se llega a lo de la otra. Ahora hay una sola lista, y el PIN y los
+  // ajustes cuelgan de la ficha del cliente.
+  //
+  // La ruta sigue atendida porque puede estar guardada en el navegador de
+  // alguien: lleva a donde ahora se hace eso.
+  if (ruta === '#/socios') return ir('#/clientes');
 
   // --- La facturería ---
   if (ruta === '#/venta' || ruta.startsWith('#/venta?')) {

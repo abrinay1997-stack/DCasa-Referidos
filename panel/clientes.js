@@ -26,7 +26,7 @@ import { selectorDeCumple, cumpleEnPalabras } from '../hub/cumple.js';
 
 export function libreta({ ir, admin, adminSinLista }) {
   const pantalla = el('div', {});
-  const lista = el('div', { clase: 'tarjeta' });
+  const lista = el('div', { clase: 'tarjeta lista-resultados' });
 
   const filtro = { texto: '', reclamadas: '', papelera: false, pagina: 1 };
   let temporizador;

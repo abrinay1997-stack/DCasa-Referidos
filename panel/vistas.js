@@ -298,13 +298,6 @@ function listo(hecho, socio, otraVez, ir) {
 // Buscar un socio
 // ---------------------------------------------------------------------------
 
-export function pantallaSocios({ ir }) {
-  return el('div', { clase: 'tarjeta' }, [
-    el('h1', { texto: 'Clientes' }),
-    buscador({ autoenfoque: true, alElegir: (s) => ir(`#/socio/${s.codigo}`) }),
-  ]);
-}
-
 // ---------------------------------------------------------------------------
 // La ficha
 // ---------------------------------------------------------------------------
@@ -325,7 +318,7 @@ export function ficha({ datos, ir, recargar }) {
 
   return el('div', {}, [
     el('div', { clase: 'tarjeta' }, [
-      el('p', { clase: 'antetitulo', texto: socio.codigo }),
+      el('p', { clase: 'antetitulo', texto: `${socio.codigo} · su cuenta` }),
       el('h1', { texto: `${socio.nombre} ${socio.apellido}`.trim() }),
       el('p', { clase: 'nota', texto: `${socio.telefono} · cliente desde ${comoFecha(socio.creadoEn)}` }),
       socio.estado === 'suspendido' ? aviso('Esta cuenta está suspendida.', 'espera') : null,
@@ -393,7 +386,11 @@ export function ficha({ datos, ir, recargar }) {
         : el('p', { clase: 'nota', texto: 'Todavía no hay movimientos.' }),
     ]),
 
-    el('button', { clase: 'boton secundario', texto: 'Volver', onclick: () => ir('#/socios') }),
+    el('button', {
+      clase: 'boton secundario',
+      texto: 'Volver al cliente',
+      onclick: () => ir(`#/cliente/${socio.codigo}`),
+    }),
   ]);
 }
 
