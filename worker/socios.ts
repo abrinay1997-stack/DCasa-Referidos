@@ -18,6 +18,7 @@ import {
   emitirSesion,
   guardarPin,
   pinCoincide,
+  pinTemporal,
   sigueBloqueada,
   type PinGuardado,
 } from './sesion';
@@ -465,3 +466,131 @@ export async function padrinoDe(base: D1Database, codigo: string): Promise<Socio
 
   return fila ? comoBreve(fila) : null;
 }
+
+// ---------------------------------------------------------------------------
+// Lo que hace una vendedora desde el panel
+// ---------------------------------------------------------------------------
+
+/**
+ * Reinicia el PIN de alguien que lo olvidó.
+ *
+ * Devuelve un PIN temporal UNA SOLA VEZ, para que la vendedora se lo dicte con
+ * el socio delante. No se guarda en claro en ningún sitio y no se puede volver
+ * a consultar: si se pierde, se genera otro.
+ *
+ * Marca `pin_temporal`, así que el socio tendrá que elegir uno suyo antes de
+ * poder hacer nada. Sin eso, el PIN que la vendedora dijo en voz alta en el
+ * mostrador se queda puesto para siempre.
+ *
+ * Y mueve `pin_cambiado_en`, lo que invalida TODAS las sesiones abiertas al
+ * instante. Eso es lo que hace útil este botón cuando alguien pierde el
+ * teléfono: el teléfono perdido queda fuera en el acto.
+ */
+export async function reiniciarPin(
+  base: D1Database,
+  codigo: string,
+  env: Env,
+  quien: string,
+): Promise<{ pin: string }> {
+  const fila = await porCodigo(base, codigo);
+  if (!fila) throw new ErrorPeticion(404, 'no-encontrada', 'Ese socio no existe.');
+
+  const pin = pinTemporal();
+  const guardado = await guardarPin(pin, env);
+  const ahora = new Date().toISOString();
+
+  await base
+    .prepare(
+      `UPDATE socios
+          SET pin_hash = ?, pin_salt = ?, pin_iteraciones = ?, pin_cambiado_en = ?,
+              pin_temporal = 1, intentos_fallidos = 0, bloqueado_hasta = NULL,
+              actualizado_en = ?
+        WHERE codigo = ?`,
+    )
+    .bind(guardado.hash, guardado.sal, guardado.iteraciones, ahora, ahora, codigo)
+    .run();
+
+  console.log(`PIN reiniciado para ${codigo} por ${quien}`);
+  return { pin };
+}
+
+/**
+ * El socio elige un PIN suyo.
+ *
+ * Pide el actual, salvo cuando el que tiene es temporal: ahí el socio no lo
+ * eligió —se lo dictaron— y exigírselo sería pedirle que recuerde algo que
+ * acaba de oír una vez.
+ */
+export async function cambiarPin(
+  base: D1Database,
+  fila: Fila,
+  peticion: Request,
+  env: Env,
+): Promise<{ cookie: string }> {
+  const datos = await cuerpoJson<{ actual?: string; nuevo?: string }>(peticion);
+
+  if (fila.pin_temporal !== 1) {
+    const actual = (datos.actual ?? '').trim();
+    const guardado: PinGuardado = {
+      hash: fila.pin_hash,
+      sal: fila.pin_salt,
+      iteraciones: fila.pin_iteraciones,
+    };
+    if (!(await pinCoincide(actual, guardado, env))) {
+      throw new ErrorPeticion(401, 'sin-sesion', 'Ese no es tu PIN de ahora.');
+    }
+  }
+
+  const problema = problemaDelPin(datos.nuevo, fila.telefono_normal);
+  if (problema) throw new ErrorPeticion(400, 'invalida', EXPLICACION_PIN[problema]);
+
+  const guardado = await guardarPin(datos.nuevo!, env);
+  const ahora = new Date().toISOString();
+
+  await base
+    .prepare(
+      `UPDATE socios
+          SET pin_hash = ?, pin_salt = ?, pin_iteraciones = ?, pin_cambiado_en = ?,
+              pin_temporal = 0, intentos_fallidos = 0, bloqueado_hasta = NULL,
+              actualizado_en = ?
+        WHERE codigo = ?`,
+    )
+    .bind(guardado.hash, guardado.sal, guardado.iteraciones, ahora, ahora, fila.codigo)
+    .run();
+
+  // Cambiar el PIN cierra las demás sesiones —es el mecanismo de revocación—,
+  // así que hay que reemitir la de quien lo está cambiando. Si no, el socio
+  // se echaría a sí mismo al guardar.
+  return { cookie: cookieSesion(await emitirSesion(fila.codigo, ahora, env)) };
+}
+
+/** Quita el candado de intentos fallidos, cuando el socio llama. */
+export async function desbloquear(base: D1Database, codigo: string): Promise<{ listo: true }> {
+  const hecho = await base
+    .prepare(
+      `UPDATE socios SET intentos_fallidos = 0, bloqueado_hasta = NULL WHERE codigo = ?`,
+    )
+    .bind(codigo)
+    .run();
+  if (!hecho.meta.changes) throw new ErrorPeticion(404, 'no-encontrada', 'Ese socio no existe.');
+  return { listo: true };
+}
+
+/** Suspender o reactivar una cuenta. */
+export async function cambiarEstado(
+  base: D1Database,
+  codigo: string,
+  peticion: Request,
+): Promise<{ estado: string }> {
+  const datos = await cuerpoJson<{ estado?: string }>(peticion);
+  const estado = datos.estado === 'suspendido' ? 'suspendido' : 'activo';
+
+  const hecho = await base
+    .prepare(`UPDATE socios SET estado = ?, actualizado_en = ? WHERE codigo = ?`)
+    .bind(estado, new Date().toISOString(), codigo)
+    .run();
+  if (!hecho.meta.changes) throw new ErrorPeticion(404, 'no-encontrada', 'Ese socio no existe.');
+  return { estado };
+}
+
+export type { Fila };

@@ -2,7 +2,7 @@
 <html lang="es-PA">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Panel · Socios D'CASA</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#1340B1">
@@ -11,6 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500&family=Inter:wght@400;500&display=swap">
 <style>
+  /* Los hex salen de datos/marca.json. verificar.mjs lo comprueba. */
   :root {
     --azul: #1340B1;
     --amarillo: #FED00F;
@@ -22,153 +23,210 @@
     --radio: 14px;
   }
   * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
   body {
-    margin: 0;
     background: var(--hueso);
     color: var(--tinta);
     font-family: Inter, system-ui, sans-serif;
+    font-size: 17px;
     line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
   }
+
   header {
     background: var(--azul);
     color: var(--blanco);
-    padding: 22px 24px;
+    padding: 16px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     flex-wrap: wrap;
   }
-  header .marca {
+  header a.marca {
     font-family: Anton, Inter, sans-serif;
     text-transform: uppercase;
-    font-size: 20px;
+    font-size: 18px;
     letter-spacing: 0.02em;
+    color: var(--blanco);
+    text-decoration: none;
   }
-  #quien {
-    font-family: Oswald, Inter, sans-serif;
-    font-size: 14px;
-    letter-spacing: 0.04em;
-    opacity: 0.9;
+  #quien { font-family: Oswald, Inter, sans-serif; font-size: 13px; opacity: 0.9; }
+
+  main { max-width: 640px; margin: 0 auto; padding: 18px 16px 64px; }
+
+  .tarjeta {
+    background: var(--blanco);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+    padding: 20px 18px;
+    margin-bottom: 14px;
   }
-  main { max-width: 900px; margin: 0 auto; padding: 28px 20px 64px; }
+  .tarjeta.centrada { text-align: center; }
+
   h1 {
     font-family: Anton, Inter, sans-serif;
     font-weight: 400;
     text-transform: uppercase;
-    font-size: 30px;
+    font-size: 26px;
+    line-height: 1.05;
+    margin: 0 0 12px;
     color: var(--azul);
-    margin: 0 0 6px;
+  }
+  h2 {
+    font-family: Oswald, Inter, sans-serif;
+    font-weight: 500;
+    font-size: 17px;
+    margin: 0 0 12px;
+    color: var(--azul);
   }
   .antetitulo {
     font-family: Oswald, Inter, sans-serif;
     text-transform: uppercase;
     letter-spacing: 0.14em;
-    font-size: 13px;
+    font-size: 12px;
     color: var(--apagado);
     margin: 0 0 8px;
   }
-  .rejilla {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 14px;
-    margin-top: 26px;
-  }
-  .tarjeta {
+  p { margin: 0 0 12px; }
+  .nota { color: var(--apagado); font-size: 15px; }
+  .grande { font-size: 19px; }
+
+  /* Atajos de la portada */
+  .rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .atajo {
+    display: block;
+    text-align: left;
     background: var(--blanco);
     border: 1px solid var(--borde);
     border-radius: var(--radio);
-    padding: 20px;
+    padding: 18px;
+    font: inherit;
+    color: var(--tinta);
+    cursor: pointer;
+    width: 100%;
   }
-  .tarjeta h2 {
-    font-family: Oswald, Inter, sans-serif;
-    font-weight: 500;
+  .atajo:hover { border-color: var(--azul); }
+  .atajo.pendiente { opacity: 0.5; cursor: default; }
+  .atajo .titulo { display: block; font-family: Oswald, Inter, sans-serif; font-size: 17px; color: var(--azul); margin-bottom: 4px; }
+  .atajo .texto { display: block; font-size: 15px; color: var(--apagado); }
+
+  /* Campos. 17 px o más: por debajo, Safari en iPhone hace zoom al enfocar. */
+  .campo { display: block; margin-bottom: 14px; }
+  .campo .etiqueta { display: block; font-family: Oswald, Inter, sans-serif; font-size: 14px; letter-spacing: 0.04em; margin-bottom: 6px; }
+  .campo input {
+    width: 100%;
+    font: inherit;
     font-size: 17px;
-    margin: 0 0 6px;
-    color: var(--azul);
+    padding: 13px 14px;
+    border: 1px solid var(--borde);
+    border-radius: 10px;
+    background: var(--blanco);
+    color: var(--tinta);
   }
-  .tarjeta p { margin: 0; font-size: 15px; color: var(--apagado); }
-  .tarjeta.pendiente { opacity: 0.6; }
-  .etiqueta {
-    display: inline-block;
+  .campo input:focus { outline: 3px solid var(--azul); outline-offset: 1px; border-color: var(--azul); }
+  .campo .nota { display: block; margin-top: 5px; font-size: 13px; }
+
+  /* Resultados de la búsqueda */
+  .resultados { margin-top: 4px; }
+  .resultado {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    border-top: 1px solid var(--borde);
+    padding: 13px 2px;
+    font: inherit;
+    cursor: pointer;
+  }
+  .resultado .nombre { display: block; font-family: Oswald, Inter, sans-serif; font-size: 17px; color: var(--azul); }
+  .resultado .meta { display: block; font-size: 14px; color: var(--apagado); }
+  .resultado .marca { display: inline-block; font-size: 12px; border: 1px solid var(--apagado); border-radius: 999px; padding: 0 8px; margin-top: 4px; color: var(--apagado); }
+  .vacio { padding: 12px 2px 0; }
+
+  /* El socio ya elegido, en el formulario de compra */
+  .elegido { background: var(--hueso); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; }
+  .elegido .nombre { display: block; font-family: Oswald, Inter, sans-serif; font-size: 17px; }
+  .elegido .meta { display: block; font-size: 14px; color: var(--apagado); }
+  .cambiar { background: none; border: 0; padding: 4px 0 0; font: inherit; font-size: 14px; color: var(--azul); text-decoration: underline; cursor: pointer; }
+
+  /* El anticipo: lo que la vendedora ve antes de confirmar */
+  .anticipo { min-height: 26px; font-size: 17px; color: var(--azul); }
+  .anticipo b { font-family: Oswald, Inter, sans-serif; }
+
+  /* Placa amarilla con texto AZUL. Amarillo sobre blanco da 1.47:1 y está
+     prohibido. */
+  .placa { background: var(--amarillo); color: var(--azul); border-radius: var(--radio); padding: 18px 14px 14px; margin: 8px 0 14px; }
+  .placa .numero { display: block; font-family: Anton, Inter, sans-serif; font-size: 54px; line-height: 0.94; }
+  .placa .unidad { display: block; font-family: Oswald, Inter, sans-serif; text-transform: uppercase; letter-spacing: 0.18em; font-size: 12px; margin-top: 5px; }
+  .placa.chica .numero { font-size: 38px; }
+
+  /* El PIN temporal, que se enseña una sola vez */
+  .pin-nuevo { background: var(--hueso); border: 2px solid var(--azul); border-radius: var(--radio); padding: 16px; margin-bottom: 14px; text-align: center; }
+  .pin-nuevo .pin { display: block; font-family: ui-monospace, Menlo, monospace; font-size: 38px; letter-spacing: 0.22em; color: var(--azul); margin: 6px 0; }
+
+  .boton {
+    display: block;
+    width: 100%;
+    text-align: center;
     background: var(--amarillo);
     color: var(--azul);
     font-family: Oswald, Inter, sans-serif;
-    font-size: 12px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 3px 9px;
-    border-radius: 999px;
-    margin-bottom: 8px;
-  }
-  .aviso {
-    background: var(--blanco);
-    border: 2px solid var(--azul);
-    border-radius: var(--radio);
-    padding: 18px 20px;
-    margin-top: 26px;
-  }
-  .aviso h2 {
-    font-family: Oswald, Inter, sans-serif;
+    font-weight: 500;
     font-size: 16px;
-    margin: 0 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 15px 18px;
+    border-radius: var(--radio);
+    border: 2px solid var(--azul);
+    margin-top: 10px;
+    cursor: pointer;
+  }
+  .boton.secundario { background: transparent; }
+  .boton[disabled] { opacity: 0.55; cursor: progress; }
+
+  .fila {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--borde);
+    padding: 14px 2px;
+    font: inherit;
     color: var(--azul);
+    cursor: pointer;
   }
-  code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 13px;
-    background: var(--hueso);
-    padding: 1px 5px;
-    border-radius: 5px;
-  }
+  .fila:last-child { border-bottom: 0; }
+  .enlace-accion { background: none; border: 0; padding: 6px 0 0; font: inherit; font-size: 14px; color: var(--azul); text-decoration: underline; cursor: pointer; }
+
+  /* El rojo de alarma no existe en esta marca: los stickers rojos son el
+     mercado del que D'CASA se separa. Se usa el azul con un borde grueso. */
+  .aviso { border-radius: 10px; padding: 11px 14px; font-size: 15px; margin: 12px 0 0; background: var(--hueso); border-left: 5px solid var(--azul); }
+  .aviso.espera { border-left-color: var(--apagado); }
+
+  .lista { list-style: none; padding: 0; margin: 0; }
+  .lista li { border-bottom: 1px solid var(--borde); padding: 12px 0; }
+  .lista li:last-child { border-bottom: 0; }
+  .lista li.anulada { opacity: 0.55; }
+  .linea { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .puntos { font-family: Anton, Inter, sans-serif; font-size: 18px; color: var(--azul); white-space: nowrap; }
+  .puntos.resta { color: var(--apagado); }
+  .cuando { font-size: 13px; color: var(--apagado); }
+  .motivo { font-size: 14px; background: var(--hueso); border-radius: 8px; padding: 8px 11px; margin: 8px 0 0; }
+  .nota-grande h2 { margin-bottom: 8px; }
 </style>
 </head>
 <body>
 
 <header>
-  <span class="marca">D'CASA · Panel de socios</span>
-  <span id="quien">comprobando quién entró…</span>
+  <a class="marca" href="#/">D'CASA · Panel de socios</a>
+  <span id="quien">comprobando…</span>
 </header>
 
-<main>
-  <p class="antetitulo">Fase 1 · La puerta</p>
-  <h1>El panel está en pie</h1>
-  <p>Si estás viendo esto, Cloudflare Access te dejó pasar y el Worker verificó
-    la firma de tu token. Las herramientas llegan en la fase 2.</p>
+<main id="app"></main>
 
-  <div class="rejilla">
-    <div class="tarjeta pendiente">
-      <span class="etiqueta">Fase 2</span>
-      <h2>Registrar una compra</h2>
-      <p>Buscar al socio, teclear la factura y el monto, y sumarle los puntos ahí mismo.</p>
-    </div>
-    <div class="tarjeta pendiente">
-      <span class="etiqueta">Fase 2</span>
-      <h2>Socios</h2>
-      <p>Buscar, ver la ficha, reiniciar un PIN, ajustar puntos con motivo.</p>
-    </div>
-    <div class="tarjeta pendiente">
-      <span class="etiqueta">Fase 4</span>
-      <h2>Canjes</h2>
-      <p>Teclear el código que trae el socio y entregarle su premio.</p>
-    </div>
-    <div class="tarjeta pendiente">
-      <span class="etiqueta">Fase 5</span>
-      <h2>Reportes</h2>
-      <p>Cuántos socios entran, cuántos puntos se emiten y cuántos se canjean.</p>
-    </div>
-  </div>
-
-  <div class="aviso">
-    <h2>Antes de que esto sirva para algo</h2>
-    <p>El programa no puede acreditar un solo punto hasta que
-      <code>datos/puntos.json</code> deje de tener valores en
-      <code>PENDIENTE</code>. Son decisiones de Marcial, no del código: cuántos
-      puntos da cada dólar, si se calculan sobre el total o sobre el subtotal
-      sin ITBMS, y cuánto gana quien trae a alguien.</p>
-  </div>
-</main>
-
-<script type="module" src="/panel/quien.js"></script>
+<script type="module" src="/panel/app.js"></script>
 </body>
 </html>

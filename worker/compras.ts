@@ -250,3 +250,28 @@ export async function anular(
   await base.batch(sentencias);
   return { anulada: id, puntosDevueltos: compra.puntos };
 }
+
+/** Las compras de un socio, más reciente arriba. Alimenta su ficha. */
+export async function deSocio(base: D1Database, codigo: string, cuantas = 30) {
+  const { results } = await base
+    .prepare(
+      `SELECT id, factura, monto_centavos, puntos, registrada_en, vendedor,
+              anulada_en, anulada_motivo, notas
+         FROM compras WHERE socio_codigo = ?
+        ORDER BY registrada_en DESC LIMIT ?`,
+    )
+    .bind(codigo, Math.min(Math.max(cuantas, 1), 100))
+    .all<Record<string, unknown>>();
+
+  return (results ?? []).map((f) => ({
+    id: f.id as string,
+    factura: f.factura as string,
+    montoCentavos: f.monto_centavos as number,
+    puntos: f.puntos as number,
+    registradaEn: f.registrada_en as string,
+    vendedor: f.vendedor as string,
+    anulada: Boolean(f.anulada_en),
+    anuladaMotivo: (f.anulada_motivo as string) ?? '',
+    notas: (f.notas as string) ?? '',
+  }));
+}

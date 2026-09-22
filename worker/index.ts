@@ -35,7 +35,7 @@ import type { Env } from './entorno';
 import { identificar, revisarPuerta, SinAcceso } from './acceso';
 import * as socios from './socios';
 import * as compras from './compras';
-import { bitacoraDe, saldoDe } from './movimientos';
+import { ajustar, bitacoraDe, saldoDe } from './movimientos';
 import { queEstaEncendido } from './reglas';
 import { COOKIE_SESION, cookieBorrada, cookieDe, leerSesion } from './sesion';
 
@@ -146,6 +146,32 @@ async function zonaPrivada(peticion: Request, url: URL, env: Env): Promise<Respo
     return json(await compras.anular(base, decodeURIComponent(anular[1]!), peticion, correo));
   }
 
+  // Las acciones sobre un socio van ANTES que la ruta de detalle: todas cuelgan
+  // de `socios/<codigo>/…` y sin este orden «reiniciar-pin» se leería como el
+  // código de un socio que se llama así.
+  const accion = /^socios\/([^/]+)\/([a-z-]+)$/.exec(ruta);
+  if (accion && metodo === 'POST') {
+    const codigo = decodeURIComponent(accion[1]!).toUpperCase();
+
+    // Devuelve el PIN temporal UNA vez, para dictárselo al socio con él
+    // delante. No se guarda en claro y no se puede volver a consultar.
+    if (accion[2] === 'reiniciar-pin') {
+      return json(await socios.reiniciarPin(base, codigo, env, correo));
+    }
+    if (accion[2] === 'desbloquear') {
+      return json(await socios.desbloquear(base, codigo));
+    }
+    if (accion[2] === 'estado') {
+      return json(await socios.cambiarEstado(base, codigo, peticion));
+    }
+    if (accion[2] === 'ajuste') {
+      const cuerpo = await peticion.json<{ puntos?: number; motivo?: string }>();
+      return json(
+        await ajustar(base, codigo, Number(cuerpo.puntos), cuerpo.motivo ?? '', correo),
+      );
+    }
+  }
+
   const detalle = /^socios\/([^/]+)$/.exec(ruta);
   if (detalle && metodo === 'GET') {
     const codigo = decodeURIComponent(detalle[1]!).toUpperCase();
@@ -155,6 +181,7 @@ async function zonaPrivada(peticion: Request, url: URL, env: Env): Promise<Respo
       socio: socios.comoSocioPublico(fila),
       saldo: await saldoDe(base, codigo),
       bitacora: (await bitacoraDe(base, codigo)).filas,
+      compras: await compras.deSocio(base, codigo),
     });
   }
 
@@ -252,6 +279,11 @@ async function zonaPublica(peticion: Request, url: URL, env: Env): Promise<Respo
         saldo: await saldoDe(base, fila.codigo),
         encendido: queEstaEncendido(),
       });
+    }
+
+    if (ruta === 'socio/pin' && metodo === 'POST') {
+      const { cookie } = await socios.cambiarPin(base, fila, peticion, env);
+      return conCookie(json({ listo: true }), cookie);
     }
 
     if (ruta === 'socio/actividad' && metodo === 'GET') {

@@ -170,3 +170,54 @@ export function sentenciaReverso(
     autor,
   });
 }
+
+/**
+ * Un ajuste manual, hecho por una vendedora.
+ *
+ * El motivo es obligatorio y NO es burocracia: el socio lo lee en su bitácora,
+ * palabra por palabra. Un saldo que cambia sin explicación es lo que convierte
+ * un programa de puntos en algo de lo que la gente desconfía, y la vendedora que
+ * lo escriba tiene que saber que lo está escribiendo para el cliente.
+ */
+export async function ajustar(
+  base: D1Database,
+  socioCodigo: string,
+  puntos: number,
+  motivo: string,
+  autor: string,
+): Promise<{ puntos: number; saldo: number }> {
+  if (!Number.isInteger(puntos) || puntos === 0) {
+    throw new ErrorPeticion(400, 'invalida', 'El ajuste tiene que ser un número distinto de cero.');
+  }
+  if (!motivo.trim()) {
+    throw new ErrorPeticion(
+      400,
+      'invalida',
+      'Escribe por qué: el socio lo va a leer tal cual en su cuenta.',
+    );
+  }
+
+  // Un ajuste negativo nunca deja el saldo por debajo de cero. Un saldo
+  // negativo es una deuda, y aquí no se debe nada: los puntos o están o no
+  // están.
+  if (puntos < 0) {
+    const saldo = await saldoDe(base, socioCodigo);
+    if (saldo + puntos < 0) {
+      throw new ErrorPeticion(
+        400,
+        'invalida',
+        `No se le pueden quitar ${Math.abs(puntos)} puntos: solo tiene ${saldo}.`,
+      );
+    }
+  }
+
+  await sentenciaAsiento(base, {
+    socioCodigo,
+    tipo: 'ajuste',
+    puntos,
+    motivo: motivo.trim(),
+    autor,
+  }).run();
+
+  return { puntos, saldo: await saldoDe(base, socioCodigo) };
+}
