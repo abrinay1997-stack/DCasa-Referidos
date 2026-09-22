@@ -250,3 +250,48 @@ test('el tope mensual del padrino da para diez referidos', async () => {
   // $50 mensuales es lo máximo que una sola persona puede sacar en bonos.
   assert.equal((tope / 100).toFixed(2), '50.00');
 });
+
+// ---------------------------------------------------------------------------
+// La escalera de premios
+// ---------------------------------------------------------------------------
+
+test('la escalera de descuentos respeta 100 puntos = $1', async () => {
+  const { readFileSync } = await import('node:fs');
+  const sql = readFileSync('migraciones/0004_premios_canjes.sql', 'utf8');
+
+  // Se leen los INSERT de la migración en vez de repetir la tabla aquí: si
+  // alguien cambia un premio de sitio, esta prueba lo mira con él.
+  const filas = [...sql.matchAll(/\('desc-\d+',\s*'\$(\d+) de descuento'.*?,\s*(\d+),\s*(\d+),\s*(\d+),/g)];
+  assert.equal(filas.length, 5, 'cinco escalones');
+
+  for (const [, dolares, puntos, valor, costo] of filas) {
+    const enDolares = Number(dolares);
+    assert.equal(
+      Number(puntos),
+      enDolares * 100,
+      `$${enDolares} tiene que costar ${enDolares * 100} puntos`,
+    );
+    // En un descuento, lo que el socio percibe y lo que le cuesta a la tienda
+    // son lo mismo. En un premio de producto no lo serán, y por eso son dos
+    // columnas distintas.
+    assert.equal(Number(valor), enDolares * 100, 'el valor en centavos cuadra');
+    assert.equal(Number(costo), Number(valor), 'en un descuento, costo = valor');
+  }
+});
+
+test('el escalón más bajo respeta el canje mínimo', async () => {
+  const { default: reales } = await import('../datos/puntos.json', { with: { type: 'json' } });
+  const r = reales as unknown as Reglas;
+  const { readFileSync } = await import('node:fs');
+  const sql = readFileSync('migraciones/0004_premios_canjes.sql', 'utf8');
+
+  const puntos = [...sql.matchAll(/'descuento',\s*(\d+),/g)].map((m) => Number(m[1]));
+  const masBajo = Math.min(...puntos);
+
+  // Si el premio más barato costara menos que el canje mínimo, saldría en el
+  // catálogo y el servidor lo rechazaría al pedirlo: un botón que no hace nada.
+  assert.ok(
+    masBajo >= r.canje.saldoMinimoParaCanjear!,
+    `el premio más barato son ${masBajo} puntos y el mínimo para canjear es ${r.canje.saldoMinimoParaCanjear}`,
+  );
+});

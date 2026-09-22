@@ -6,7 +6,15 @@
  */
 
 import { api } from './api.js';
-import { cargando, el, ficha, nuevaCompra, pantallaSocios, problema } from './vistas.js';
+import {
+  cargando,
+  el,
+  ficha,
+  nuevaCompra,
+  pantallaCanjes,
+  pantallaSocios,
+  problema,
+} from './vistas.js';
 
 const donde = document.getElementById('app');
 const quien = document.getElementById('quien');
@@ -41,7 +49,7 @@ function portada() {
         '#/compra',
       ),
       tarjeta('Socios', 'Busca, mira su ficha, reinicia un PIN, ajusta sus puntos.', '#/socios'),
-      tarjeta('Canjes', 'Teclear el código que trae el socio y entregarle su premio.', '', false),
+      tarjeta('Entregar un premio', 'Teclea el código que trae el socio y entrégaselo.', '#/canjes'),
       tarjeta('Reportes', 'Cuántos socios entran y cuántos puntos se emiten.', '', false),
     ]),
 
@@ -71,6 +79,8 @@ async function pintar() {
   }
 
   if (ruta === '#/socios') return poner(pantallaSocios({ ir }));
+
+  if (ruta === '#/canjes') return poner(pantallaCanjes({ ir }));
 
   const detalle = /^#\/socio\/([^/]+)$/.exec(ruta);
   if (detalle) {

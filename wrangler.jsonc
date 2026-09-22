@@ -91,6 +91,16 @@
   //
   // Ver README → «Los dos secretos».
 
+  // Cada hora, para vencer los códigos de canje que nadie fue a buscar y
+  // devolverle los puntos al socio. Ver `scheduled` en `worker/index.ts`.
+  //
+  // Cada hora y no cada minuto porque la vigencia son 72 horas: un código que
+  // vence a las 14:05 y se cierra a las 15:00 no le cambia la vida a nadie, y
+  // cada disparo es una invocación que se paga.
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
+
   "observability": {
     "enabled": true
   }

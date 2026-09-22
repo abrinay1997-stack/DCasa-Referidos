@@ -13,8 +13,11 @@ import {
   cargando,
   entrar,
   invita,
+  miCanje,
+  misCanjes,
   misPuntos,
   portada,
+  premios,
   problema,
   registro,
 } from './vistas.js';
@@ -72,7 +75,7 @@ async function pintar() {
 
   // Las pantallas con sesión: si no hay, se manda a entrar en vez de enseñar
   // una pantalla vacía que no explica nada.
-  const necesitaSesion = ruta === '#/puntos' || ruta === '#/actividad' || ruta === '#/invita';
+  const necesitaSesion = ruta !== '#/' && ruta !== '#/entrar' && ruta !== '#/registro';
   if (necesitaSesion && !estado.socio) return ir('#/entrar');
 
   switch (ruta) {
@@ -84,6 +87,46 @@ async function pintar() {
 
     case '#/puntos':
       return poner(misPuntos({ ...estado, ir, salir }));
+
+    case '#/premios': {
+      poner(cargando());
+      try {
+        const datos = await api.premios();
+        return poner(
+          premios({
+            datos,
+            ir,
+            pedir: async (premio) => {
+              const seguro = confirm(
+                `¿Cambiar ${premio.puntos.toLocaleString('en-US')} puntos por «${premio.nombre}»?\n\n` +
+                  'Los puntos salen ahora y tienes 72 horas para pasar por la tienda. ' +
+                  'Si no vas, te los devolvemos.',
+              );
+              if (!seguro) return;
+              try {
+                const canje = await api.pedirPremio(premio.id);
+                estado.saldo -= canje.puntos;
+                ir(`#/canje/${canje.codigo}`);
+              } catch (fallo) {
+                poner(problema(fallo.mensaje ?? fallo.message, () => pintar()));
+              }
+            },
+          }),
+        );
+      } catch (fallo) {
+        return poner(problema(fallo.message, () => pintar()));
+      }
+    }
+
+    case '#/mis-premios': {
+      poner(cargando());
+      try {
+        const { canjes } = await api.canjes();
+        return poner(misCanjes({ canjes, ir }));
+      } catch (fallo) {
+        return poner(problema(fallo.message, () => pintar()));
+      }
+    }
 
     case '#/invita': {
       poner(cargando());
@@ -104,11 +147,40 @@ async function pintar() {
       }
     }
 
-    default:
+    default: {
+      const canje = /^#\/canje\/([^/]+)$/.exec(ruta);
+      if (canje) {
+        poner(cargando());
+        try {
+          const { canjes } = await api.canjes();
+          const suyo = canjes.find((c) => c.codigo === decodeURIComponent(canje[1]));
+          if (!suyo) return ir('#/mis-premios');
+          return poner(
+            miCanje({
+              canje: suyo,
+              ir,
+              cancelar: async (c) => {
+                if (!confirm('¿Cancelarlo? Te devolvemos los puntos enteros.')) return;
+                try {
+                  await api.cancelarCanje(c.codigo);
+                  await refrescar();
+                  ir('#/puntos');
+                } catch (fallo) {
+                  poner(problema(fallo.mensaje ?? fallo.message, () => pintar()));
+                }
+              },
+            }),
+          );
+        } catch (fallo) {
+          return poner(problema(fallo.message, () => pintar()));
+        }
+      }
+
       // Con sesión abierta, la portada no tiene nada que ofrecer: quien vuelve
       // al enlace del QR estando dentro quiere ver sus puntos.
       if (estado.socio) return ir('#/puntos');
       return poner(portada({ padrino: estado.padrino, ir }));
+    }
   }
 }
 

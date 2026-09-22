@@ -56,8 +56,34 @@ export const api = {
   salir: () => json('/api/socio/salir', {}),
   actividad: (desde = 0) => pedir(`/api/socio/actividad?desde=${desde}`),
   referidos: () => pedir('/api/socio/referidos'),
+  premios: () => pedir('/api/socio/premios'),
+  canjes: () => pedir('/api/socio/canjes'),
+  pedirPremio: (premio) => json('/api/socio/canjes', { premio }),
+  cancelarCanje: (codigo) => json(`/api/socio/canjes/${encodeURIComponent(codigo)}/cancelar`, {}),
   padrino: (codigo) => pedir(`/api/socio/padrino?r=${encodeURIComponent(codigo)}`),
 };
+
+/** `500` → `$5.00`. Lo que vale un premio, para que el socio lo compare. */
+export const comoDolares = (centavos) => {
+  const e = Math.floor(Math.abs(centavos) / 100);
+  const c = String(Math.abs(centavos) % 100).padStart(2, '0');
+  return `$${e.toLocaleString('en-US')}.${c}`;
+};
+
+/**
+ * Cuánto le queda a un código antes de vencer.
+ *
+ * En horas y no en «vence el 24/09 a las 15:04»: el socio quiere saber si le da
+ * tiempo de pasar hoy, no la hora exacta.
+ */
+export function cuantoLeQueda(expiraEn) {
+  const horas = Math.ceil((new Date(expiraEn).getTime() - Date.now()) / 3600_000);
+  if (horas <= 0) return 'Ya venció';
+  if (horas === 1) return 'Queda 1 hora';
+  if (horas < 24) return `Quedan ${horas} horas`;
+  const dias = Math.ceil(horas / 24);
+  return dias === 1 ? 'Queda 1 día' : `Quedan ${dias} días`;
+}
 
 /** `1250` → `1,250`. Los puntos no llevan decimales nunca. */
 export const comoPuntos = (n) => Number(n).toLocaleString('en-US');

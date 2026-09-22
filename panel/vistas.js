@@ -497,3 +497,176 @@ export const problema = (mensaje, reintentar) =>
     aviso(mensaje),
     reintentar ? el('button', { clase: 'boton secundario', texto: 'Reintentar', onclick: reintentar }) : null,
   ]);
+
+// ---------------------------------------------------------------------------
+// Entregar un premio
+// ---------------------------------------------------------------------------
+
+const NOMBRE_ESTADO_CANJE = {
+  solicitado: 'Pendiente',
+  entregado: 'Entregado',
+  vencido: 'Venció',
+  cancelado: 'Cancelado',
+};
+
+/**
+ * La pantalla de canjes.
+ *
+ * Arriba, el campo para teclear el código que trae el socio — es lo que hace la
+ * vendedora con el cliente delante, así que va primero y con el foco puesto.
+ * Debajo, la lista de lo pendiente, que es lo que hay que atender.
+ */
+export function pantallaCanjes({ ir }) {
+  const donde = el('div');
+
+  const entrada = el('input', {
+    id: 'codigo',
+    type: 'text',
+    placeholder: 'Ej.: 7K2M9P',
+    autocomplete: 'off',
+    autocapitalize: 'characters',
+    maxlength: '6',
+  });
+  // Se sube a mayúsculas mientras escribe: el código está en mayúsculas y el
+  // teclado de un móvil no lo está.
+  entrada.addEventListener('input', () => {
+    entrada.value = entrada.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  });
+
+  const boton = el('button', { clase: 'boton', type: 'submit', texto: 'Buscar el código' });
+  const buscar = el('form', { clase: 'tarjeta', novalidate: true }, [
+    el('h1', { texto: 'Entregar un premio' }),
+    el('label', { clase: 'campo', for: 'codigo' }, [
+      el('span', { clase: 'etiqueta', texto: 'El código que trae el socio' }),
+      entrada,
+    ]),
+    boton,
+  ]);
+
+  alEnviar(buscar, boton, async () => {
+    const canje = await api.verCanje(entrada.value);
+    donde.replaceChildren(confirmarEntrega(canje, () => pintar(), ir));
+  });
+
+  async function pintar() {
+    donde.replaceChildren(buscar, cargando());
+    try {
+      const { canjes } = await api.canjes('solicitado');
+      donde.replaceChildren(buscar, lista(canjes, ir));
+      queueMicrotask(() => entrada.focus());
+    } catch (fallo) {
+      donde.replaceChildren(buscar, problema(fallo.message, pintar));
+    }
+  }
+
+  function lista(canjes, ir) {
+    if (!canjes.length) {
+      return el('div', { clase: 'tarjeta' }, [
+        el('h2', { texto: 'Pendientes de recoger' }),
+        el('p', { clase: 'nota', texto: 'Ninguno ahora mismo.' }),
+      ]);
+    }
+    return el('div', { clase: 'tarjeta' }, [
+      el('h2', { texto: `Pendientes de recoger (${canjes.length})` }),
+      el(
+        'ul',
+        { clase: 'lista' },
+        canjes.map((c) =>
+          el('li', {}, [
+            el('div', { clase: 'linea' }, [
+              el('span', { texto: c.socio }),
+              el('span', { clase: 'codigo-chico', texto: c.codigo }),
+            ]),
+            el('span', {
+              clase: 'cuando',
+              texto: `${c.premioNombre} · ${comoPuntos(c.puntos)} pts · pedido el ${comoFecha(c.solicitadoEn)}`,
+            }),
+            el('button', {
+              clase: 'enlace-accion',
+              type: 'button',
+              texto: 'Entregarlo',
+              onclick: async () => {
+                try {
+                  const canje = await api.verCanje(c.codigo);
+                  donde.replaceChildren(confirmarEntrega(canje, pintar, ir));
+                } catch (fallo) {
+                  alert(fallo.message);
+                }
+              },
+            }),
+          ]),
+        ),
+      ),
+    ]);
+  }
+
+  pintar();
+  return donde;
+}
+
+/**
+ * La confirmación antes de entregar.
+ *
+ * Se enseña de quién es y qué es ANTES de sellar, porque entregar no se puede
+ * deshacer: los puntos salieron cuando el socio lo pidió, y una entrega sellada
+ * por error solo se corrige con un ajuste manual.
+ */
+function confirmarEntrega(canje, volver, ir) {
+  if (canje.estado !== 'solicitado') {
+    return el('div', { clase: 'tarjeta' }, [
+      el('h1', { texto: 'Ese código ya no vale' }),
+      aviso(
+        canje.estado === 'entregado'
+          ? `Ya se entregó el ${comoFecha(canje.entregadoEn)}.`
+          : canje.estado === 'vencido'
+            ? 'Venció y los puntos ya volvieron a su cuenta. Puede pedirlo otra vez.'
+            : 'Se canceló y los puntos ya volvieron a su cuenta.',
+        'espera',
+      ),
+      el('button', { clase: 'boton secundario', texto: 'Volver', onclick: volver }),
+    ]);
+  }
+
+  const boton = el('button', { clase: 'boton', type: 'submit', texto: 'Entregar' });
+  const formulario = el('form', { clase: 'tarjeta centrada' }, [
+    el('p', { clase: 'antetitulo', texto: 'Confirma antes de entregar' }),
+    el('h1', { texto: canje.premioNombre }),
+    el('p', { clase: 'grande' }, [
+      document.createTextNode('Para '),
+      el('b', { texto: canje.socio }),
+    ]),
+    el('p', {
+      clase: 'nota',
+      texto:
+        `${comoPuntos(canje.puntos)} puntos · pedido el ${comoFecha(canje.solicitadoEn)} · ` +
+        `código ${canje.codigo}`,
+    }),
+    canje.premioTipo === 'descuento'
+      ? aviso(
+          `Es un descuento de ${comoDolares(canje.valorCentavos)}: aplícalo en la compra que ` +
+            'esté haciendo ahora. Los puntos ya salieron de su cuenta.',
+          'espera',
+        )
+      : null,
+    boton,
+  ]);
+
+  alEnviar(formulario, boton, async () => {
+    await api.entregarCanje(canje.codigo);
+    formulario.replaceWith(
+      el('div', { clase: 'tarjeta centrada' }, [
+        el('p', { clase: 'antetitulo', texto: 'Entregado' }),
+        el('h1', { texto: canje.premioNombre }),
+        el('p', { clase: 'grande', texto: `Listo. ${canje.socio} ya lo tiene.` }),
+        el('button', { clase: 'boton', texto: 'Atender otro', onclick: volver }),
+        el('button', {
+          clase: 'boton secundario',
+          texto: 'Ver su ficha',
+          onclick: () => ir(`#/socio/${canje.socioCodigo}`),
+        }),
+      ]),
+    );
+  });
+
+  return formulario;
+}

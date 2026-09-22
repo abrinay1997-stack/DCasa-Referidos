@@ -55,6 +55,9 @@ export const api = {
   calcular: (socio, montoCentavos) => post('compras/calcular', { socio, montoCentavos }),
   registrarCompra: (datos) => post('compras', datos),
   anularCompra: (id, motivo) => post(`compras/${encodeURIComponent(id)}/anular`, { motivo }),
+  canjes: (estado = 'solicitado') => pedir(`canjes?estado=${estado}`),
+  verCanje: (codigo) => pedir(`canjes/${encodeURIComponent(codigo)}`),
+  entregarCanje: (codigo) => post(`canjes/${encodeURIComponent(codigo)}/entregar`),
 };
 
 /**

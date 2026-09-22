@@ -38,6 +38,7 @@ import * as compras from './compras';
 import { ajustar, bitacoraDe, saldoDe } from './movimientos';
 import { queEstaEncendido, REGLAS } from './reglas';
 import * as referidos from './referidos';
+import * as canjes from './canjes';
 import { COOKIE_SESION, cookieBorrada, cookieDe, leerSesion } from './sesion';
 
 /** Todo lo del equipo cuelga de aquí. Ver la cabecera. */
@@ -55,6 +56,27 @@ export default {
       return await zonaPublica(peticion, url, env);
     } catch (error) {
       return convertirElFallo(error);
+    }
+  },
+  /**
+   * El Cron, cada hora.
+   *
+   * Vence los códigos de canje que nadie fue a buscar y devuelve los puntos.
+   * Devolverlos no es cortesía: el socio los ganó comprando, y quedárselos
+   * porque no pudo pasar por la tienda en tres días es la clase de detalle que
+   * hace que un programa de puntos deje de ser creíble.
+   *
+   * Si esto falla, los puntos se quedan reservados y el socio no puede volver a
+   * pedir ese premio. Por eso el fallo se registra con su nombre y no en
+   * silencio: es la única parte del sistema que corre sin nadie mirando.
+   */
+  async scheduled(_evento: ScheduledController, env: Env): Promise<void> {
+    try {
+      const cuantos = await canjes.vencerLosViejos(env.BASE);
+      if (cuantos) console.log(`Vencidos ${cuantos} canje(s); puntos devueltos.`);
+    } catch (error) {
+      console.error('El vencimiento de canjes falló:', error);
+      throw error;
     }
   },
 } satisfies ExportedHandler<Env>;
@@ -145,6 +167,20 @@ async function zonaPrivada(peticion: Request, url: URL, env: Env): Promise<Respo
   const anular = /^compras\/([^/]+)\/anular$/.exec(ruta);
   if (anular && metodo === 'POST') {
     return json(await compras.anular(base, decodeURIComponent(anular[1]!), peticion, correo));
+  }
+
+  if (ruta === 'canjes' && metodo === 'GET') {
+    return json({ canjes: await canjes.paraElPanel(base, url.searchParams.get('estado') ?? 'solicitado') });
+  }
+
+  const verCanje = /^canjes\/([^/]+)$/.exec(ruta);
+  if (verCanje && metodo === 'GET') {
+    return json(await canjes.porCodigo(base, decodeURIComponent(verCanje[1]!)));
+  }
+
+  const entregar = /^canjes\/([^/]+)\/entregar$/.exec(ruta);
+  if (entregar && metodo === 'POST') {
+    return json(await canjes.entregar(base, decodeURIComponent(entregar[1]!), correo));
   }
 
   // Las acciones sobre un socio van ANTES que la ruta de detalle: todas cuelgan
@@ -298,6 +334,24 @@ async function zonaPublica(peticion: Request, url: URL, env: Env): Promise<Respo
         alAhijado: REGLAS.referido.puntosAlAhijado,
         traidos: await referidos.deSocio(base, fila.codigo),
       });
+    }
+
+    if (ruta === 'socio/premios' && metodo === 'GET') {
+      const saldo = await saldoDe(base, fila.codigo);
+      return json({ saldo, premios: await canjes.catalogo(base, saldo) });
+    }
+
+    if (ruta === 'socio/canjes' && metodo === 'GET') {
+      return json({ canjes: await canjes.deSocio(base, fila.codigo) });
+    }
+
+    if (ruta === 'socio/canjes' && metodo === 'POST') {
+      return json(await canjes.pedir(base, fila.codigo, peticion), 201);
+    }
+
+    const cancelar = /^socio\/canjes\/([^/]+)\/cancelar$/.exec(ruta);
+    if (cancelar && metodo === 'POST') {
+      return json(await canjes.cancelar(base, fila.codigo, decodeURIComponent(cancelar[1]!)));
     }
 
     if (ruta === 'socio/actividad' && metodo === 'GET') {

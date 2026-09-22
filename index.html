@@ -217,6 +217,19 @@
      y un borde grueso, que se ve igual de bien y no contradice el logo. */
   .aviso.malo { background: var(--hueso); border-left: 5px solid var(--azul); color: var(--tinta); }
 
+  .premios { list-style: none; padding: 0; margin: 0; }
+  .premios li { border-bottom: 1px solid var(--borde); padding: 14px 0; }
+  .premios li:last-child { border-bottom: 0; }
+  /* Los que no alcanza salen atenuados pero VISIBLES: son el motivo para
+     volver. Esconderlos quitaría lo único que empuja a seguir sumando. */
+  .premios li.lejos { opacity: 0.55; }
+  /* `block` y no el `inline` que hereda de .cuando: si no, la descripción y el
+     «te faltan» salen pegados en la misma línea —«…próxima compra.Te faltan
+     360»— y parece un error de tecleo. */
+  .premios li .cuando { display: block; }
+  .faltan { display: block; font-size: 14px; color: var(--apagado); margin-top: 8px; }
+  .boton.chico { width: auto; display: inline-block; padding: 9px 18px; font-size: 14px; margin-top: 8px; }
+
   .bitacora { list-style: none; padding: 0; margin: 0; }
   .bitacora li { border-bottom: 1px solid var(--borde); padding: 13px 0; }
   .bitacora li:last-child { border-bottom: 0; }

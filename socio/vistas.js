@@ -21,7 +21,7 @@
  * ---------------------------------------------------------------------------
  */
 
-import { api, comoFecha, comoPuntos } from './api.js';
+import { api, comoFecha, comoPuntos, cuantoLeQueda } from './api.js';
 
 // ---------------------------------------------------------------------------
 // Piezas
@@ -297,11 +297,9 @@ export function misPuntos({ socio, saldo, encendido, ir, salir }) {
     ]),
 
     el('div', { clase: 'tarjeta' }, [
-      el('button', {
-        clase: 'fila',
-        texto: 'Mi actividad',
-        onclick: () => ir('#/actividad'),
-      }),
+      el('button', { clase: 'fila', texto: 'Cambiar por premios', onclick: () => ir('#/premios') }),
+      el('button', { clase: 'fila', texto: 'Mis premios', onclick: () => ir('#/mis-premios') }),
+      el('button', { clase: 'fila', texto: 'Mi actividad', onclick: () => ir('#/actividad') }),
       // «Invita y gana» no se enseña mientras el servidor no pueda pagar un
       // referido. Prometer una recompensa que el sistema no puede acreditar es
       // peor que no ofrecerla, y este programa se vende entero sobre que las
@@ -484,6 +482,138 @@ export function invita({ datos, ir }) {
           }),
     ]),
 
+    el('button', { clase: 'boton secundario', texto: 'Volver', onclick: () => ir('#/puntos') }),
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// Premios
+// ---------------------------------------------------------------------------
+
+/**
+ * El catálogo.
+ *
+ * Los premios que el socio todavía no alcanza salen igual, atenuados y con su
+ * «te faltan X». Esconderlos quitaría lo único que hace que alguien vuelva: ver
+ * lo que está a punto de conseguir.
+ */
+export function premios({ datos, ir, pedir }) {
+  const { saldo, premios: lista } = datos;
+
+  return el('div', {}, [
+    el('div', { clase: 'tarjeta centrada' }, [
+      el('p', { clase: 'antetitulo', texto: 'Tus puntos' }),
+      el('div', { clase: 'placa' }, [
+        el('span', { clase: 'numero', texto: comoPuntos(saldo) }),
+        el('span', { clase: 'unidad', texto: saldo === 1 ? 'punto' : 'puntos' }),
+      ]),
+    ]),
+
+    el('div', { clase: 'tarjeta' }, [
+      el('h1', { texto: 'Cámbialos' }),
+      lista.length
+        ? el(
+            'ul',
+            { clase: 'premios' },
+            lista.map((p) => {
+              const alcanza = p.faltan === 0;
+              return el('li', { clase: alcanza ? '' : 'lejos' }, [
+                el('div', { clase: 'linea' }, [
+                  el('span', { clase: 'que', texto: p.nombre }),
+                  el('span', { clase: 'puntos suma', texto: comoPuntos(p.puntos) }),
+                ]),
+                p.descripcion ? el('span', { clase: 'cuando', texto: p.descripcion }) : null,
+                alcanza
+                  ? el('button', {
+                      clase: 'boton chico',
+                      texto: 'Pedirlo',
+                      onclick: () => pedir(p),
+                    })
+                  : el('span', {
+                      clase: 'faltan',
+                      texto: `Te faltan ${comoPuntos(p.faltan)}`,
+                    }),
+              ]);
+            }),
+          )
+        : el('p', { clase: 'nota', texto: 'Todavía no hay premios. Pronto los habrá.' }),
+    ]),
+
+    el('button', { clase: 'boton secundario', texto: 'Volver', onclick: () => ir('#/puntos') }),
+  ]);
+}
+
+/**
+ * El código que el socio enseña en la tienda.
+ *
+ * Grande, monoespaciado y con la cuenta atrás a la vista. Es lo que va a leer
+ * una vendedora desde el otro lado del mostrador, en un teléfono que no es el
+ * suyo.
+ */
+export function miCanje({ canje, ir, cancelar }) {
+  return el('div', {}, [
+    el('div', { clase: 'tarjeta centrada' }, [
+      el('p', { clase: 'antetitulo', texto: 'Enséñalo en la tienda' }),
+      el('h1', { texto: canje.premioNombre }),
+      el('div', { clase: 'placa' }, [
+        el('span', { clase: 'codigo-grande', texto: canje.codigo }),
+      ]),
+      el('p', { clase: 'grande', texto: cuantoLeQueda(canje.expiraEn) }),
+      el('p', {
+        clase: 'nota',
+        texto:
+          'Si no pasas antes de que venza, te devolvemos los puntos enteros y ' +
+          'lo puedes pedir otra vez.',
+      }),
+      el('a', {
+        clase: 'boton',
+        texto: 'Cómo llegar',
+        href: 'https://waze.com/ul/hd1x62rvjc',
+        target: '_blank',
+        rel: 'noopener',
+      }),
+      el('button', {
+        clase: 'boton secundario',
+        texto: 'Cancelarlo y recuperar mis puntos',
+        onclick: () => cancelar(canje),
+      }),
+    ]),
+    el('button', { clase: 'boton secundario', texto: 'Volver', onclick: () => ir('#/puntos') }),
+  ]);
+}
+
+const NOMBRE_ESTADO = {
+  solicitado: 'Pendiente de recoger',
+  entregado: 'Entregado',
+  vencido: 'Venció · puntos devueltos',
+  cancelado: 'Cancelado · puntos devueltos',
+};
+
+export function misCanjes({ canjes, ir }) {
+  return el('div', { clase: 'tarjeta' }, [
+    el('h1', { texto: 'Mis premios' }),
+    canjes.length
+      ? el(
+          'ul',
+          { clase: 'bitacora' },
+          canjes.map((c) =>
+            el('li', {}, [
+              el('div', { clase: 'linea' }, [
+                el('span', { clase: 'que', texto: c.premioNombre }),
+                el('span', { clase: 'puntos resta', texto: `-${comoPuntos(c.puntos)}` }),
+              ]),
+              el('span', { clase: 'cuando', texto: NOMBRE_ESTADO[c.estado] ?? c.estado }),
+              c.estado === 'solicitado'
+                ? el('button', {
+                    clase: 'enlace-accion',
+                    texto: `Ver mi código · ${cuantoLeQueda(c.expiraEn)}`,
+                    onclick: () => ir(`#/canje/${c.codigo}`),
+                  })
+                : null,
+            ]),
+          ),
+        )
+      : el('p', { clase: 'nota', texto: 'Todavía no has cambiado ningún premio.' }),
     el('button', { clase: 'boton secundario', texto: 'Volver', onclick: () => ir('#/puntos') }),
   ]);
 }
