@@ -34,8 +34,49 @@ export { bloqueoTras, cuantoQueda, ESCALONES, sigueBloqueada } from '../comparti
  * para poder subirlo cuando los teléfonos y los atacantes sean más rápidos y
  * volver a derivar el PIN de cada uno en su siguiente acceso correcto — en vez
  * de dejar fuera a todo el mundo de golpe el día que se cambie el número.
+ *
+ * ---------------------------------------------------------------------------
+ * ESTE NÚMERO ES EL MÁXIMO QUE LA PLATAFORMA ACEPTA, Y NO ES UNA OPINIÓN
+ *
+ * Cloudflare no deja pasar de 100.000. Con 210.000 —que es lo que decía aquí—
+ * la plataforma contesta, literal:
+ *
+ *   NotSupportedError: Pbkdf2 failed: iteration counts above 100000 are not
+ *   supported (requested 210000).
+ *
+ * Y el runtime de la máquina de uno NO pone ese límite. Así que esto funcionaba
+ * en local, pasaba las pruebas, se publicaba, y en producción reventaba TODO lo
+ * que toca un PIN: registrarse, reclamar la ficha, entrar, reiniciar el PIN.
+ * Nadie podía usar el programa, y el repositorio no tenía forma de saberlo.
+ *
+ * Así se descubrió: el dueño intentó entrar a su propia cuenta, con 36.379
+ * puntos dentro, y recibió «Algo falló de nuestro lado».
+ *
+ * Por eso `node herramientas/verificar.mjs` ahora para el despliegue si alguien
+ * vuelve a subir este número, y el sondeo se lo pregunta a lo publicado en cada
+ * despliegue (`GET /api/salud?probar=pin`).
+ *
+ * ---------------------------------------------------------------------------
+ * BAJAR DE 210.000 A 100.000 NO DEBILITA ESTO, Y CONVIENE DECIR POR QUÉ
+ *
+ * Un PIN son seis dígitos: un millón de combinaciones. Contra un volcado de la
+ * base robado, un millón de combinaciones caen en minutos con una tarjeta
+ * gráfica, den las vueltas que den. Las vueltas nunca fueron lo que protegía
+ * esto. Lo que lo protege son tres cosas, y las tres siguen enteras:
+ *
+ *   · LA PIMIENTA, que vive fuera de la base. Quien se lleve la base y no el
+ *     secreto del Worker no tiene nada que atacar: le falta un trozo de la
+ *     entrada de cada derivación.
+ *   · EL CANDADO, que corta el intento número cinco. Adivinar desde fuera, que
+ *     es por donde de verdad entraría alguien, no llega a empezar.
+ *   · QUÉ PIN SE ACEPTA: ni repetidos, ni seguidos, ni un tramo del propio
+ *     celular. Las combinaciones que alguien probaría primero no existen.
+ * ---------------------------------------------------------------------------
  */
-export const ITERACIONES = 210_000;
+export const ITERACIONES = 100_000;
+
+/** El techo de la plataforma. Ni aquí ni en ningún sitio se puede pasar. */
+export const TOPE_ITERACIONES = 100_000;
 
 const LARGO_SAL = 16;
 const LARGO_CLAVE = 32;

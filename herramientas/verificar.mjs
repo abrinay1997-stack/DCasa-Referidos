@@ -390,6 +390,65 @@ function reglaFichaSinPin() {
 }
 
 /**
+ * Las vueltas de PBKDF2, contra el techo de la plataforma.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUÉ ESTA REGLA EXISTE
+ *
+ * Cloudflare no acepta más de 100.000 iteraciones de PBKDF2, y el runtime de
+ * la máquina de uno no pone ese límite. Así que un número más alto funciona en
+ * local, pasa las pruebas, se publica, y en producción revienta TODO lo que
+ * toca un PIN: registrarse, reclamar la ficha, entrar, reiniciar el PIN. Nadie
+ * puede usar el programa y nada en el repositorio lo dice.
+ *
+ * Eso pasó con 210.000, y se descubrió porque el dueño no pudo entrar a su
+ * propia cuenta. Esta regla es para que la próxima vez lo diga el flujo y no
+ * un cliente de pie en el mostrador.
+ *
+ * Y el señuelo de `entrar()` tiene que derivar con las MISMAS vueltas: si se
+ * separan, un número que no existe contesta en un tiempo distinto a uno que sí,
+ * y la pantalla de acceso vuelve a ser un detector de clientes de D'CASA.
+ * ---------------------------------------------------------------------------
+ */
+function reglaVueltas() {
+  const TOPE = 100_000;
+
+  const sesion = readFileSync(join(RAIZ, 'worker/sesion.ts'), 'utf8');
+  const puestas = /export const ITERACIONES = ([\d_]+);/.exec(sesion);
+
+  if (!puestas) {
+    error('worker/sesion.ts', 0, 'No se encuentra «export const ITERACIONES».');
+  } else {
+    const vueltas = Number(puestas[1].replace(/_/g, ''));
+    if (vueltas > TOPE) {
+      error(
+        'worker/sesion.ts',
+        sesion.slice(0, puestas.index).split('\n').length,
+        `ITERACIONES = ${vueltas.toLocaleString('es')}, y Cloudflare no acepta más de ` +
+          `${TOPE.toLocaleString('es')}. Arriba lanza «Pbkdf2 failed: iteration counts ` +
+          `above 100000 are not supported», y con eso nadie puede registrarse ni entrar. ` +
+          `En local no falla: ese límite solo existe en producción.`,
+      );
+    }
+  }
+
+  const socios = readFileSync(join(RAIZ, 'worker/socios.ts'), 'utf8');
+  const senuelo = /const SEÑUELO: PinGuardado = \{[^}]*\}/s.exec(socios);
+  if (!senuelo) {
+    error('worker/socios.ts', 0, 'No se encuentra el señuelo de «derivarEnVano».');
+  } else if (!/iteraciones: ITERACIONES,/.test(senuelo[0])) {
+    error(
+      'worker/socios.ts',
+      socios.slice(0, senuelo.index).split('\n').length,
+      `El señuelo tiene las vueltas escritas a mano en vez de «iteraciones: ITERACIONES». ` +
+        `Tiene que costar lo MISMO que un PIN de verdad: si se separan, un número que no ` +
+        `existe contesta en un tiempo distinto a uno que sí, y la pantalla de acceso ` +
+        `vuelve a ser un detector de clientes de D'CASA.`,
+    );
+  }
+}
+
+/**
  * Los datos del emisor que todavía faltan en el comprobante.
  *
  * Es un AVISO y no un error, a propósito: el sistema funciona sin ellos y
@@ -664,6 +723,7 @@ reglaComentarios();
 reglaTipografia();
 reglaSinSaldo();
 reglaFichaSinPin();
+reglaVueltas();
 reglaEmisor();
 reglaPuerta();
 reglaEconomia();

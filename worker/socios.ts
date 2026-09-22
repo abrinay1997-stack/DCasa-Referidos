@@ -17,6 +17,7 @@ import {
   cuantoQueda,
   emitirSesion,
   guardarPin,
+  ITERACIONES,
   pinCoincide,
   pinTemporal,
   sigueBloqueada,
@@ -543,10 +544,26 @@ async function derivarEnVano(pin: string, env: Env): Promise<void> {
   await pinCoincide(pin || '000000', SEÑUELO, env);
 }
 
+/**
+ * Contra qué se deriva cuando no hay nadie contra quien derivar.
+ *
+ * `iteraciones` sale de `ITERACIONES` y NO es un número escrito aquí. Lo fue, y
+ * costó dos cosas a la vez:
+ *
+ *   · El señuelo tiene que costar lo MISMO que un PIN de verdad. Si los dos
+ *     números se separan, un número que no existe contesta en un tiempo
+ *     distinto a uno que sí, y esta pantalla vuelve a ser el detector de
+ *     clientes de D'CASA que `entrar()` se esfuerza en no ser.
+ *   · Y cuando el número de aquí pasó a ser imposible para la plataforma
+ *     —210.000, por encima del techo de 100.000— entrar con un número
+ *     desconocido dejó de contestar «no coinciden» y empezó a contestar 500.
+ *
+ * `node herramientas/verificar.mjs` no deja volver a escribirlo a mano.
+ */
 const SEÑUELO: PinGuardado = {
   hash: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
   sal: 'AAAAAAAAAAAAAAAAAAAAAA==',
-  iteraciones: 210_000,
+  iteraciones: ITERACIONES,
 };
 
 // ---------------------------------------------------------------------------
