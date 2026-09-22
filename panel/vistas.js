@@ -734,6 +734,46 @@ export function reportes({ datos, ir }) {
       }),
     ]),
 
+    // EL PASIVO, PARTIDO EN DOS, y es la cifra que más dice de las dos.
+    //
+    // Los reclamados son deuda con fecha: esa gente ve su saldo en el teléfono
+    // y va a canjearlo. Los que esperan pueden no salir nunca de la caja. Y
+    // cuando «esperando» baja mientras «reclamados» sube, el QR está
+    // funcionando — que no se ve en ninguna otra cifra de esta pantalla.
+    el('div', { clase: 'tarjeta' }, [
+      el('h2', { texto: 'De quién son esos puntos' }),
+      el('ul', { clase: 'lista' }, [
+        el('li', {}, [
+          el('div', { clase: 'linea' }, [
+            el('span', { texto: 'Ya están en el programa' }),
+            el('span', { clase: 'puntos', texto: comoDolares(general.reclamados.centavos) }),
+          ]),
+          el('p', {
+            clase: 'cuando',
+            texto: `${comoPuntos(general.reclamados.puntos)} puntos · ${general.reclamados.socios} persona(s)`,
+          }),
+        ]),
+        el('li', {}, [
+          el('div', { clase: 'linea' }, [
+            el('span', { texto: 'Esperando a que los reclamen' }),
+            el('span', { clase: 'puntos resta', texto: comoDolares(general.esperando.centavos) }),
+          ]),
+          el('p', {
+            clase: 'cuando',
+            texto: `${comoPuntos(general.esperando.puntos)} puntos · ${general.esperando.socios} persona(s)`,
+          }),
+        ]),
+      ]),
+      general.esperando.socios
+        ? el('p', {
+            clase: 'nota',
+            texto:
+              `Hay ${general.esperando.socios} persona(s) con puntos suyos sin recoger porque ` +
+              'todavía no escanearon el QR. Salen en Clientes → Sin reclamar.',
+          })
+        : null,
+    ]),
+
     // Los dos flujos brutos, APARTE del neto: quien solo ve el saldo no sabe si
     // viene de poca actividad o de mucha actividad muy canjeada.
     el('div', { clase: 'cifras' }, [

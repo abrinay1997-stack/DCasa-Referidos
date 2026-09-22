@@ -28,6 +28,22 @@ export interface Resumen {
   puntosVivos: number;
   pasivoCentavos: number;
 
+  /**
+   * El pasivo, PARTIDO EN DOS.
+   *
+   * `reclamados` son los puntos de quien entró al programa: esa gente tiene la
+   * app, ve su saldo y va a canjearlo. Es deuda con fecha.
+   *
+   * `esperando` son los de quien compró y todavía no reclamó su ficha. Puede
+   * que nunca la reclame, y entonces ese dinero no sale de la caja nunca.
+   * Sumarlos en una sola cifra daría una deuda inflada con dinero que quizá
+   * nadie pida — y peor, escondería la única cifra que dice si el QR está
+   * funcionando: cuando `esperando` baja mientras `reclamados` sube, la gente
+   * está entrando al programa.
+   */
+  reclamados: { puntos: number; centavos: number; socios: number };
+  esperando: { puntos: number; centavos: number; socios: number };
+
   /** De dónde salieron los puntos, en bruto. */
   ganados: { compras: number; referidos: number; otros: number; total: number };
 
@@ -41,7 +57,7 @@ export interface Resumen {
 }
 
 export async function resumen(base: D1Database): Promise<Resumen> {
-  const [vivos, porTipo, canjeados, pendientes, socios] = await Promise.all([
+  const [vivos, porTipo, canjeados, pendientes, socios, partido] = await Promise.all([
     base
       .prepare(`SELECT COALESCE(SUM(puntos), 0) AS v FROM movimientos`)
       .first<{ v: number }>(),
@@ -79,6 +95,25 @@ export async function resumen(base: D1Database): Promise<Resumen> {
          FROM socios s WHERE s.eliminado_en IS NULL`,
       )
       .first<{ total: number; conCompra: number; porReferido: number }>(),
+
+    // El saldo de cada ficha, agrupado por si tiene PIN o no. Se suma por
+    // socio y luego se agrupa, y no al revés: `SUM` sobre el join daría lo
+    // mismo aquí, pero contar CUÁNTAS fichas hay en cada grupo exige el
+    // agrupado por ficha primero.
+    base
+      .prepare(
+        `SELECT reclamada, COUNT(*) AS fichas, COALESCE(SUM(saldo), 0) AS puntos
+           FROM (
+             SELECT s.codigo,
+                    CASE WHEN s.pin_hash <> '' THEN 1 ELSE 0 END AS reclamada,
+                    COALESCE((SELECT SUM(m.puntos) FROM movimientos m
+                               WHERE m.socio_codigo = s.codigo), 0) AS saldo
+               FROM socios s WHERE s.eliminado_en IS NULL
+           )
+          WHERE saldo > 0
+          GROUP BY reclamada`,
+      )
+      .all<{ reclamada: number; fichas: number; puntos: number }>(),
   ]);
 
   const de = (tipo: string) =>
@@ -93,9 +128,20 @@ export async function resumen(base: D1Database): Promise<Resumen> {
 
   const puntosVivos = vivos?.v ?? 0;
 
+  const grupo = (reclamada: number) => {
+    const f = (partido.results ?? []).find((x) => x.reclamada === reclamada);
+    return {
+      puntos: f?.puntos ?? 0,
+      centavos: (f?.puntos ?? 0) * CENTAVOS_POR_PUNTO,
+      socios: f?.fichas ?? 0,
+    };
+  };
+
   return {
     puntosVivos,
     pasivoCentavos: puntosVivos * CENTAVOS_POR_PUNTO,
+    reclamados: grupo(1),
+    esperando: grupo(0),
     ganados: { compras, referidos, otros, total: compras + referidos + otros },
     entregados: {
       cuantos: canjeados?.c ?? 0,
