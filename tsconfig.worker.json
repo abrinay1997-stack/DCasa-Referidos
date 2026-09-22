@@ -14,7 +14,8 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
+    "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["worker/**/*.ts", "compartido/**/*.ts"]
+  "include": ["worker/**/*.ts", "compartido/**/*.ts", "datos/*.json"]
 }

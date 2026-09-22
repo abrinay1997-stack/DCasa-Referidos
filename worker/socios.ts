@@ -1,0 +1,467 @@
+/**
+ * El alta, la entrada y la ficha del socio.
+ *
+ * Las dos operaciones delicadas del programa están aquí, y las dos lo son por
+ * la misma razón: ocurren con una persona de pie en el mostrador y una
+ * vendedora esperando.
+ *
+ *   · `registrar()` tiene que ser rápida y no puede fallar por un detalle.
+ *   · `entrar()` tiene que ser lenta a propósito y no puede filtrar nada.
+ */
+
+import { ErrorPeticion, cuerpoJson } from './http';
+import type { Env } from './entorno';
+import {
+  bloqueoTras,
+  cookieSesion,
+  cuantoQueda,
+  emitirSesion,
+  guardarPin,
+  pinCoincide,
+  sigueBloqueada,
+  type PinGuardado,
+} from './sesion';
+import { sentenciaAsiento } from './movimientos';
+import { leerReglas } from './reglas';
+import {
+  codigoDesdeBytes,
+  codigoNormal,
+  comoBreve,
+  cumpleValido,
+  esCodigoValido,
+  EXPLICACION_PIN,
+  problemaDelPin,
+  telefonoValido,
+  VERSION_TERMINOS,
+  type DatosAlta,
+  type Socio,
+  type SocioBreve,
+} from '../compartido/socios';
+import { correoNormal, soloDigitos, whatsappNormal } from '../compartido/texto';
+import { choco, columnaDelChoque } from '../compartido/choques';
+
+/** La fila, tal como sale de la base. */
+interface Fila {
+  codigo: string;
+  nombre: string;
+  apellido: string;
+  telefono: string;
+  telefono_normal: string;
+  cedula: string;
+  correo: string;
+  cumple: string;
+  estado: string;
+  pin_hash: string;
+  pin_salt: string;
+  pin_iteraciones: number;
+  pin_cambiado_en: string;
+  pin_temporal: number;
+  intentos_fallidos: number;
+  bloqueado_hasta: string | null;
+  referido_por: string | null;
+  creado_en: string;
+  eliminado_en: string | null;
+}
+
+function comoSocio(fila: Fila): Socio {
+  return {
+    codigo: fila.codigo,
+    nombre: fila.nombre,
+    apellido: fila.apellido,
+    telefono: fila.telefono,
+    cedula: fila.cedula,
+    correo: fila.correo,
+    cumple: fila.cumple,
+    estado: fila.estado === 'suspendido' ? 'suspendido' : 'activo',
+    pinTemporal: fila.pin_temporal === 1,
+    referidoPor: fila.referido_por,
+    creadoEn: fila.creado_en,
+  };
+}
+
+const COLUMNAS = `codigo, nombre, apellido, telefono, telefono_normal, cedula, correo, cumple,
+  estado, pin_hash, pin_salt, pin_iteraciones, pin_cambiado_en, pin_temporal,
+  intentos_fallidos, bloqueado_hasta, referido_por, creado_en, eliminado_en`;
+
+export async function porCodigo(base: D1Database, codigo: string): Promise<Fila | null> {
+  return base
+    .prepare(`SELECT ${COLUMNAS} FROM socios WHERE codigo = ? AND eliminado_en IS NULL`)
+    .bind(codigo)
+    .first<Fila>();
+}
+
+async function porTelefono(base: D1Database, telefonoNormal: string): Promise<Fila | null> {
+  return base
+    .prepare(`SELECT ${COLUMNAS} FROM socios WHERE telefono_normal = ?`)
+    .bind(telefonoNormal)
+    .first<Fila>();
+}
+
+// ---------------------------------------------------------------------------
+// El alta
+// ---------------------------------------------------------------------------
+
+/**
+ * Da de alta a un socio y abre su sesión.
+ *
+ * `creadoPor` es `'qr'` cuando se registró él solo desde el teléfono, o el
+ * correo de la vendedora cuando lo dio de alta en el mostrador. Se guarda
+ * porque saber cuántas altas entran solas y cuántas las empuja el equipo es lo
+ * que dice si el QR está funcionando.
+ */
+export async function registrar(
+  base: D1Database,
+  peticion: Request,
+  env: Env,
+  creadoPor = 'qr',
+): Promise<{ socio: Socio; cookie: string }> {
+  const datos = await cuerpoJson<DatosAlta>(peticion);
+
+  if (!datos.acepta) {
+    throw new ErrorPeticion(
+      400,
+      'invalida',
+      'Para entrar al programa hay que aceptar los términos.',
+    );
+  }
+
+  const nombre = (datos.nombre ?? '').trim();
+  if (!nombre) throw new ErrorPeticion(400, 'invalida', 'Nos falta tu nombre.');
+
+  const telefono = (datos.telefono ?? '').trim();
+  const telNormal = whatsappNormal(telefono);
+  if (!telefonoValido(telNormal)) {
+    throw new ErrorPeticion(
+      400,
+      'invalida',
+      'Ese número de celular no parece de Panamá. Son 8 números, como 6026-1919.',
+    );
+  }
+
+  const problema = problemaDelPin(datos.pin, telNormal);
+  if (problema) throw new ErrorPeticion(400, 'invalida', EXPLICACION_PIN[problema]);
+
+  if (!cumpleValido(datos.cumple)) {
+    throw new ErrorPeticion(400, 'invalida', 'Esa fecha de cumpleaños no existe.');
+  }
+
+  // ¿Ya está? Se mira ANTES de derivar el PIN, que tarda.
+  const existente = await porTelefono(base, telNormal);
+  if (existente) {
+    if (existente.eliminado_en) {
+      // Restaurarlo aquí sería dejar que cualquiera con su número reviva una
+      // cuenta retirada y se quede con sus puntos. Lo hace una vendedora, con
+      // la persona delante.
+      throw new ErrorPeticion(
+        409,
+        'repetida',
+        'Ese número tuvo una cuenta que está retirada. Pasa por la tienda y te la ' +
+          'volvemos a activar.',
+      );
+    }
+    throw new ErrorPeticion(
+      409,
+      'repetida',
+      'Ese número ya tiene cuenta. Entra con tu PIN, o pídenos que te lo reiniciemos.',
+    );
+  }
+
+  // El padrino. Un código que no existe NO impide el alta: quien está en el
+  // mostrador con la vendedora esperando no puede quedarse fuera porque su
+  // cuñado le pasó mal el código.
+  let padrino: string | null = null;
+  if (datos.referido) {
+    const codigo = codigoNormal(datos.referido);
+    if (esCodigoValido(codigo)) {
+      const fila = await porCodigo(base, codigo);
+      if (fila && fila.estado === 'activo') padrino = fila.codigo;
+    }
+  }
+
+  const pin = await guardarPin(datos.pin, env);
+  const ahora = new Date().toISOString();
+  const reglas = leerReglas();
+  const bienvenida = reglas.bienvenida.puntos;
+
+  // Hasta cinco intentos por si un código sale repetido. Con 887 millones de
+  // combinaciones no va a pasar, pero «no va a pasar» le toca a alguien alguna
+  // vez, y a ése le tocaría el error.
+  for (let intento = 0; intento < 5; intento += 1) {
+    const codigo = codigoDesdeBytes(crypto.getRandomValues(new Uint8Array(6)));
+
+    const sentencias: D1PreparedStatement[] = [
+      base
+        .prepare(
+          `INSERT INTO socios
+             (codigo, nombre, apellido, telefono, telefono_normal, cedula, cedula_digitos,
+              correo, correo_normal, cumple, pin_hash, pin_salt, pin_iteraciones,
+              pin_cambiado_en, referido_por, referido_en, terminos_version,
+              terminos_aceptados_en, creado_en, creado_por, actualizado_en)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          codigo,
+          nombre,
+          (datos.apellido ?? '').trim(),
+          telefono,
+          telNormal,
+          (datos.cedula ?? '').trim(),
+          soloDigitos(datos.cedula),
+          (datos.correo ?? '').trim(),
+          correoNormal(datos.correo),
+          (datos.cumple ?? '').trim(),
+          pin.hash,
+          pin.sal,
+          pin.iteraciones,
+          ahora,
+          padrino,
+          padrino ? ahora : null,
+          VERSION_TERMINOS,
+          ahora,
+          ahora,
+          creadoPor,
+          ahora,
+        ),
+    ];
+
+    // El regalo de bienvenida va en el MISMO batch que el alta. Un socio sin su
+    // asiento de bienvenida es un estado que no puede existir, y la única forma
+    // de que no exista es que las dos escrituras viajen juntas.
+    //
+    // Si `bienvenida.puntos` sigue sin definirse en datos/puntos.json, no hay
+    // asiento y no es un error: es que todavía no se ha decidido regalar nada.
+    if (bienvenida !== null && bienvenida > 0) {
+      sentencias.push(
+        sentenciaAsiento(base, {
+          socioCodigo: codigo,
+          tipo: 'bienvenida',
+          puntos: bienvenida,
+          autor: 'sistema',
+          ocurridoEn: ahora,
+        }),
+      );
+    }
+
+    try {
+      await base.batch(sentencias);
+    } catch (error) {
+      // El código repetido se reintenta con otro. Los otros dos choques son
+      // una carrera con un alta simultánea —el SELECT de arriba dijo que no
+      // estaba, y entre ese momento y éste llegó— y sí se le cuentan a quien
+      // llama, con el mensaje que le sirve.
+      //
+      // Se compara contra la COLUMNA y no contra el nombre del índice, porque
+      // es lo que SQLite dice: «UNIQUE constraint failed: socios.telefono_normal».
+      // Ver compartido/choques.ts.
+      const columna = columnaDelChoque(error);
+      if (columna === 'socios.codigo' || String(error).includes('PRIMARY KEY')) continue;
+
+      if (choco(error, 'socios.telefono_normal')) {
+        throw new ErrorPeticion(409, 'repetida', 'Ese número ya tiene cuenta. Entra con tu PIN.');
+      }
+      if (choco(error, 'socios.cedula_digitos')) {
+        throw new ErrorPeticion(409, 'repetida', 'Esa cédula ya está en otra cuenta.');
+      }
+      throw error;
+    }
+
+    const fila = await porCodigo(base, codigo);
+    if (!fila) throw new ErrorPeticion(500, 'fallo', 'El alta no se guardó. Vuelve a intentarlo.');
+
+    return {
+      socio: comoSocio(fila),
+      // La cookie entera, con HttpOnly, Secure y SameSite. Devolver aquí el token
+      // pelado dejaría que el enrutador lo pusiera en `Set-Cookie` tal cual, sin
+      // ninguna de las tres marcas — y una sesión legible por JavaScript se va
+      // con la primera inyección que se cuele en la app del socio.
+      cookie: cookieSesion(await emitirSesion(codigo, ahora, env)),
+    };
+  }
+
+  throw new ErrorPeticion(500, 'fallo', 'No se pudo asignar un código. Vuelve a intentarlo.');
+}
+
+// ---------------------------------------------------------------------------
+// La entrada
+// ---------------------------------------------------------------------------
+
+/**
+ * Entrar con celular y PIN.
+ *
+ * ---------------------------------------------------------------------------
+ * LA RESPUESTA ES LA MISMA TANTO SI EL NÚMERO NO EXISTE COMO SI EL PIN ESTÁ MAL
+ *
+ * Distinguirlas convierte este formulario en un buscador de quién es cliente de
+ * D'CASA: se teclean números hasta que uno deja de decir «no existe», y ya se
+ * sabe quién compra aquí. Con una lista de números de La Chorrera eso es una
+ * tarde de trabajo.
+ *
+ * Por eso hay UN solo mensaje, y por eso cuando el número no existe igualmente
+ * se deriva un PIN contra datos de mentira: sin eso, la respuesta llega en 2 ms
+ * cuando el número no existe y en 300 ms cuando existe, y el reloj cuenta lo
+ * que el mensaje calla.
+ * ---------------------------------------------------------------------------
+ */
+export async function entrar(
+  base: D1Database,
+  peticion: Request,
+  env: Env,
+): Promise<{ socio: Socio; cookie: string }> {
+  const datos = await cuerpoJson<{ telefono?: string; pin?: string }>(peticion);
+  const telNormal = whatsappNormal(datos.telefono);
+  const pin = (datos.pin ?? '').trim();
+
+  const noCuadra = () =>
+    new ErrorPeticion(401, 'sin-sesion', 'Ese número y ese PIN no coinciden. Prueba otra vez.');
+
+  const fila = telNormal ? await porTelefono(base, telNormal) : null;
+
+  if (!fila || fila.eliminado_en) {
+    await derivarEnVano(pin, env);
+    throw noCuadra();
+  }
+
+  const ahora = new Date();
+
+  if (sigueBloqueada(fila.bloqueado_hasta, ahora)) {
+    throw new ErrorPeticion(
+      429,
+      'bloqueada',
+      `Por seguridad bloqueamos tu cuenta un rato. Prueba en ${cuantoQueda(fila.bloqueado_hasta!, ahora)}, ` +
+        `o escríbenos por WhatsApp y te ayudamos.`,
+    );
+  }
+
+  const guardado: PinGuardado = {
+    hash: fila.pin_hash,
+    sal: fila.pin_salt,
+    iteraciones: fila.pin_iteraciones,
+  };
+
+  if (!(await pinCoincide(pin, guardado, env))) {
+    const fallos = fila.intentos_fallidos + 1;
+    await base
+      .prepare(`UPDATE socios SET intentos_fallidos = ?, bloqueado_hasta = ? WHERE codigo = ?`)
+      .bind(fallos, bloqueoTras(fallos, ahora), fila.codigo)
+      .run();
+    throw noCuadra();
+  }
+
+  // Suspender a alguien tiene que echarlo, pero se comprueba DESPUÉS del PIN:
+  // antes, el mensaje «tu cuenta está suspendida» le diría a cualquiera que
+  // teclee ese número que la cuenta existe.
+  if (fila.estado === 'suspendido') {
+    throw new ErrorPeticion(
+      403,
+      'suspendida',
+      'Tu cuenta está suspendida. Escríbenos por WhatsApp y lo revisamos.',
+    );
+  }
+
+  if (fila.intentos_fallidos !== 0 || fila.bloqueado_hasta) {
+    await base
+      .prepare(`UPDATE socios SET intentos_fallidos = 0, bloqueado_hasta = NULL WHERE codigo = ?`)
+      .bind(fila.codigo)
+      .run();
+  }
+
+  return {
+    socio: comoSocio(fila),
+    cookie: cookieSesion(await emitirSesion(fila.codigo, fila.pin_cambiado_en, env)),
+  };
+}
+
+/**
+ * Derivar contra nada, para que el reloj no delate.
+ *
+ * Se usan una sal fija y el mismo número de vueltas que una cuenta real: lo que
+ * importa no es el resultado —se tira— sino que tardar lo mismo.
+ */
+async function derivarEnVano(pin: string, env: Env): Promise<void> {
+  await pinCoincide(pin || '000000', SEÑUELO, env);
+}
+
+const SEÑUELO: PinGuardado = {
+  hash: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+  sal: 'AAAAAAAAAAAAAAAAAAAAAA==',
+  iteraciones: 210_000,
+};
+
+// ---------------------------------------------------------------------------
+// Quién está pidiendo
+// ---------------------------------------------------------------------------
+
+/**
+ * El socio de una sesión, comprobado contra la base en CADA petición.
+ *
+ * No basta con que el token esté bien firmado. Se relee la fila porque entre
+ * que se emitió la cookie y ahora pueden haber pasado noventa días, y en
+ * noventa días a alguien lo suspenden, lo retiran, o le reinician el PIN
+ * porque perdió el teléfono.
+ */
+export async function socioDeLaSesion(
+  base: D1Database,
+  codigo: string,
+  pinCambiadoEn: string,
+): Promise<Fila> {
+  const fila = await porCodigo(base, codigo);
+
+  if (!fila) {
+    throw new ErrorPeticion(401, 'sin-sesion', 'Tu sesión se cerró. Vuelve a entrar con tu PIN.');
+  }
+
+  // La revocación. Cambiar o reiniciar el PIN invalida todas las sesiones
+  // abiertas al instante, sin tabla de sesiones que mantener: el teléfono
+  // perdido queda fuera en cuanto una vendedora reinicia el PIN.
+  if (fila.pin_cambiado_en !== pinCambiadoEn) {
+    throw new ErrorPeticion(
+      401,
+      'sin-sesion',
+      'Tu PIN cambió, así que cerramos las sesiones abiertas. Entra con el nuevo.',
+    );
+  }
+
+  if (fila.estado === 'suspendido') {
+    throw new ErrorPeticion(
+      403,
+      'suspendida',
+      'Tu cuenta está suspendida. Escríbenos por WhatsApp y lo revisamos.',
+    );
+  }
+
+  return fila;
+}
+
+export function comoSocioPublico(fila: Fila): Socio {
+  return comoSocio(fila);
+}
+
+// ---------------------------------------------------------------------------
+// El padrino, para la pantalla de alta
+// ---------------------------------------------------------------------------
+
+/**
+ * Resuelve un código de referido a un nombre, y a nada más.
+ *
+ * Devuelve nombre e inicial. Si devolviera la ficha, cualquiera con un código a
+ * mano tendría el teléfono y la cédula de quien lo repartió — y estos códigos
+ * se reparten por WhatsApp a propósito.
+ *
+ * Es la única ruta pública sin sesión que toca la base, así que responde igual
+ * ante un código que no existe y uno mal escrito: `null`, sin explicar cuál de
+ * las dos cosas pasó.
+ */
+export async function padrinoDe(base: D1Database, codigo: string): Promise<SocioBreve | null> {
+  const limpio = codigoNormal(codigo);
+  if (!esCodigoValido(limpio)) return null;
+
+  const fila = await base
+    .prepare(
+      `SELECT codigo, nombre, apellido FROM socios
+        WHERE codigo = ? AND eliminado_en IS NULL AND estado = 'activo'`,
+    )
+    .bind(limpio)
+    .first<{ codigo: string; nombre: string; apellido: string }>();
+
+  return fila ? comoBreve(fila) : null;
+}
