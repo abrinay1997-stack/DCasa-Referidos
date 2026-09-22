@@ -115,6 +115,49 @@ export async function pinCoincide(pin: string, guardado: PinGuardado, env: Env):
   return diferencia === 0;
 }
 
+/**
+ * ¿Se puede derivar un PIN AQUÍ, en la máquina donde esto está corriendo?
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUÉ EXISTE ESTA FUNCIÓN
+ *
+ * Derivar un PIN es lo único que hace este sistema que puede funcionar en la
+ * máquina del que programa y fallar en la de Cloudflare. Todo lo demás —leer
+ * la base, componer una respuesta, firmar una cookie— se comporta igual en las
+ * dos. PBKDF2 no: la plataforma le pone límites propios que el runtime local
+ * no tiene, y cuando los pasa, lanza.
+ *
+ * Eso pasó, y costó una tarde averiguarlo: el dueño llenó el formulario de
+ * registro de su propia app y recibió «Algo falló de nuestro lado». Las mismas
+ * peticiones, byte a byte, funcionaban en local. Ninguna prueba del
+ * repositorio podía haberlo visto, porque ninguna corre donde falla.
+ *
+ * Así que ahora se puede preguntar desde fuera, y el sondeo lo pregunta en
+ * cada despliegue. Un `/api/salud` que diga «en pie» mientras nadie puede
+ * entrar ni registrarse es un `/api/salud` que miente.
+ *
+ * Cuesta lo que cuesta una entrada de verdad, así que NO va en la respuesta
+ * corriente de salud: se pide a propósito.
+ * ---------------------------------------------------------------------------
+ */
+export async function derivacionEnPie(
+  env: Env,
+): Promise<{ ok: boolean; vueltas: number; motivo?: string }> {
+  try {
+    await derivar('000000', new Uint8Array(LARGO_SAL), ITERACIONES, env.PIMIENTA_PIN ?? '');
+    return { ok: true, vueltas: ITERACIONES };
+  } catch (error) {
+    // El mensaje de la plataforma, tal cual. No lleva nada secreto —ni el PIN,
+    // ni la pimienta, ni datos de nadie— y es lo ÚNICO que dice qué hacer.
+    // Sin él, quien mire esto solo sabe que algo falla.
+    return {
+      ok: false,
+      vueltas: ITERACIONES,
+      motivo: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+    };
+  }
+}
+
 /** Un PIN temporal para dictar en el mostrador, sin patrones adivinables. */
 export function pinTemporal(): string {
   // Se rechaza y se vuelve a tirar en vez de arreglar el número a mano: cambiar

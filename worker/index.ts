@@ -42,7 +42,7 @@ import * as canjes from './canjes';
 import * as reportes from './reportes';
 import * as clientes from './clientes';
 import * as ventas from './ventas';
-import { COOKIE_SESION, cookieBorrada, cookieDe, leerSesion } from './sesion';
+import { COOKIE_SESION, cookieBorrada, cookieDe, derivacionEnPie, leerSesion } from './sesion';
 
 /** Todo lo del equipo cuelga de aquí. Ver la cabecera. */
 const ZONA_PRIVADA = '/panel';
@@ -383,7 +383,22 @@ async function zonaPublica(peticion: Request, url: URL, env: Env): Promise<Respo
   // Un latido para poder comprobar desde fuera que el Worker está vivo sin
   // tocar la base ni revelar nada de nadie.
   if (ruta === 'salud' && metodo === 'GET') {
-    return json({ estado: 'en pie', zona: 'socio', encendido: queEstaEncendido() });
+    // `?probar=pin` deriva un PIN de verdad, con las vueltas de verdad, y dice
+    // si se pudo. Es lo único de este sistema que puede funcionar en la máquina
+    // del que programa y fallar en la de Cloudflare, y por eso se puede
+    // preguntar desde fuera. Ver `derivacionEnPie`.
+    //
+    // No va en la respuesta corriente porque cuesta lo que cuesta una entrada
+    // de verdad, y esta ruta es pública.
+    const cuerpo: Record<string, unknown> = {
+      estado: 'en pie',
+      zona: 'socio',
+      encendido: queEstaEncendido(),
+    };
+    if (url.searchParams.get('probar') === 'pin') {
+      cuerpo.derivacion = await derivacionEnPie(env);
+    }
+    return json(cuerpo);
   }
 
   // Lo que dicen los términos sale de las MISMAS reglas que aplica el
