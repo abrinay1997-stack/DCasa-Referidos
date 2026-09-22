@@ -39,15 +39,26 @@
 
   /* Masa azul arriba, como manda el sistema de logo de la marca. */
   header { background: var(--azul); padding: 32px 20px 44px; text-align: center; }
-  /* El logo va sobre su propia placa blanca y NUNCA pegado a la masa azul:
-     el azul de dentro del archivo (#1648C0) no es el azul de la marca /* v: contraejemplo, el azul medido en el logo es el que NO se usa */
-     (#1340B1), y los dos juntos se leen como un error de impresión. */
+  /* El logo va sobre su propia placa blanca y NUNCA pegado a la masa azul: el
+     azul que lleva dentro el archivo no es el azul de la marca —ver
+     `logo.$divergencia` en datos/marca.json— y los dos juntos se leen como un
+     error de impresión.
+
+     Aquí no se escribe ese hex a propósito. Escribirlo obligaba a escapar la
+     línea para el verificador, el escape iba dentro de este mismo comentario, y
+     los comentarios CSS no anidan: el cierre del escape terminaba éste antes de
+     tiempo y el navegador se comía la regla entera sin protestar. Se descubrió
+     en producción, con el logo pegado al borde izquierdo. */
   .placa-logo {
     display: inline-block;
     background: var(--blanco);
     border-radius: 24px;
     padding: 16px 22px;
   }
+  /* `inline-block` y no `block`: el centrado del cabecero es `text-align`, que
+     alinea contenido en línea. Con el img en `block` y sin la envoltura en
+     `inline-block`, la imagen se convierte en una caja de bloque de 170 px que
+     `text-align` no toca, y se queda a la izquierda. */
   .placa-logo img { display: block; width: 170px; height: auto; }
 
   main { flex: 1; width: 100%; max-width: 520px; margin: 0 auto; padding: 0 16px 48px; }

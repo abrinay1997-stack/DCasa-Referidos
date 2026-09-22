@@ -10,14 +10,16 @@
  *
  *   1. Ningún hex fuera de `datos/marca.json`.
  *   2. El amarillo no toca el blanco ni el hueso (ratio 1.47:1, invisible).
- *   3. Ninguna tipografía prohibida.
- *   4. Ninguna columna `saldo` en las migraciones — la invariante del libro
+ *   3. Ningún comentario CSS dentro de otro: no anidan, y el navegador se come
+ *      la regla siguiente sin decir nada.
+ *   4. Ninguna tipografía prohibida.
+ *   5. Ninguna columna `saldo` en las migraciones — la invariante del libro
  *      mayor, defendida mecánicamente y no con buena voluntad.
- *   5. `ACCESO_DOMINIO` y `ACCESO_AUD` tienen la FORMA correcta, con las
+ *   6. `ACCESO_DOMINIO` y `ACCESO_AUD` tienen la FORMA correcta, con las
  *      expresiones leídas de `worker/acceso.ts` para no duplicarlas.
- *   6. `datos/puntos.json` es válido, y se dice qué sigue PENDIENTE.
- *   7. Los secretos no están escritos en ningún archivo versionado.
- *   8. Ni enlaces rotos ni huecos de plantilla en los `.md`.
+ *   7. `datos/puntos.json` es válido, y se dice qué sigue PENDIENTE.
+ *   8. Los secretos no están escritos en ningún archivo versionado.
+ *   9. Ni enlaces rotos ni huecos de plantilla en los `.md`.
  *
  * Para un contraejemplo deliberado —un hex equivocado que se está ilustrando—
  * se escapa la línea con `<!-- v: por qué -->` en Markdown o `// v: por qué`
@@ -224,7 +226,76 @@ function reglaCombinaciones() {
 }
 
 // ---------------------------------------------------------------------------
-// 3. Ninguna tipografía prohibida
+// 3. Comentarios CSS anidados
+// ---------------------------------------------------------------------------
+
+/**
+ * `/* … /* … *​/ … *​/` — los comentarios CSS NO ANIDAN.
+ *
+ * El `*​/` de dentro cierra el de fuera, y todo lo que venía después se queda
+ * suelto en mitad de la hoja de estilos. El navegador no protesta: descarta en
+ * silencio desde ahí hasta la siguiente llave, y se lleva por delante la regla
+ * que viniera detrás.
+ *
+ * Esto pasó de verdad, y pasó por culpa de este mismo verificador: para
+ * escapar un hex de contraejemplo se metió un `/* v: … *​/` DENTRO de un
+ * comentario que ya estaba abierto. La regla `.placa-logo` desapareció, el logo
+ * se fue al borde izquierdo, y nada lo dijo — ni el build, ni las pruebas, ni
+ * mirar la página, porque el logo lleva su propia placa blanca dibujada dentro
+ * del PNG y parecía que el estilo seguía ahí. Se descubrió en una captura de
+ * producción.
+ *
+ * Un fallo que no se ve es peor que uno que revienta, así que ahora revienta.
+ */
+function reglaComentarios() {
+  for (const ruta of ARCHIVOS_DE_CODIGO) {
+    if (!['.css', '.html'].includes(extname(ruta))) continue;
+
+    const texto = readFileSync(ruta, 'utf8');
+    let abierto = -1;
+
+    for (let i = 0; i < texto.length - 1; i += 1) {
+      const dos = texto.slice(i, i + 2);
+      if (dos === '/*') {
+        if (abierto >= 0) {
+          error(
+            rel(ruta),
+            texto.slice(0, i).split('\n').length,
+            'Comentario CSS dentro de otro comentario CSS. No anidan: el «*/» de dentro ' +
+              'cierra el de fuera, y lo que venga después queda suelto en la hoja de estilos. ' +
+              'El navegador descarta en silencio hasta la siguiente llave y se lleva la regla ' +
+              'que hubiera detrás.',
+          );
+          break;
+        }
+        abierto = i;
+        i += 1;
+      } else if (dos === '*/') {
+        if (abierto < 0) {
+          // Un cierre sin apertura significa que ALGO cerró antes el comentario
+          // que éste creía seguir. Es la otra mitad del mismo fallo, y la que
+          // de verdad picó: no hacía falta anidar un `/*` — bastó con escribir
+          // los dos caracteres de cierre dentro del texto del comentario, entre
+          // comillas, explicando precisamente este problema.
+          error(
+            rel(ruta),
+            texto.slice(0, i).split('\n').length,
+            'Cierre de comentario CSS suelto: aquí no había ningún comentario abierto. ' +
+              'Casi siempre significa que el texto de un comentario anterior contenía los ' +
+              'dos caracteres de cierre —aunque fuera entre comillas— y lo terminó antes ' +
+              'de tiempo. Todo lo que venía después quedó suelto en la hoja de estilos.',
+          );
+          break;
+        }
+        abierto = -1;
+        i += 1;
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 4. Ninguna tipografía prohibida
 // ---------------------------------------------------------------------------
 
 function reglaTipografia() {
@@ -508,6 +579,7 @@ function reglaEnlaces() {
 reglaColor();
 reglaContraste();
 reglaCombinaciones();
+reglaComentarios();
 reglaTipografia();
 reglaSinSaldo();
 reglaPuerta();
