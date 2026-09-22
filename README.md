@@ -113,6 +113,9 @@ npm run tipos            # el Worker compila
 npm run build            # verifica, prueba y arma publico/
 ```
 
+Desplegar no está en esa lista a propósito: lo hace GitHub Actions en cada
+empuje a `main`. Ver [«Desplegar»](#desplegar).
+
 `npm run dev` necesita un `.dev.vars` que no se versiona:
 
 ```ini
@@ -128,9 +131,38 @@ PIMIENTA_PIN = "cualquier-cosa-en-local"
 
 ## Desplegar
 
-### Los dos secretos
+**Lo despliega GitHub Actions, no tú.** Cada empuje a `main` corre el flujo
+[`entregar.yml`](.github/workflows/entregar.yml), que hace tres cosas en este
+orden y se para en la primera que falle:
 
-No van en `wrangler.jsonc` y no se versionan:
+```
+probar  →  migrar  →  desplegar
+```
+
+`probar` corre en los PR también, y ahí se acaba: de una rama no se publica
+nada. Si algo falla, lo que está publicado sigue en pie.
+
+**El orden es ése y no el contrario.** Una migración es aditiva: añade tablas y
+columnas. El código viejo con columnas de más funciona igual —no las mira—; el
+código nuevo con columnas de menos responde «La operación falló» a todo. Así que
+la base va primero y el Worker después.
+
+> Los dos hubs hermanos tienen migrar y desplegar en flujos separados, y los dos
+> documentan que nadie puede encadenarlos: es una carrera que se gana por
+> costumbre, porque migrar tarda segundos y construir tarda minutos. Aquí son
+> tres trabajos encadenados y la carrera no existe.
+
+### Los tres secretos
+
+Dos en GitHub (Settings → Secrets and variables → Actions):
+
+| Secreto | Dónde sale |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare → Manage Account → API Tokens → Create Token → plantilla **Edit Cloudflare Workers**. **Antes de crearlo, súmale Account → D1 → Edit**: sin ese permiso, publicar funciona pero migrar no, y el fallo llega con la base ya tocada a medias. |
+| `CLOUDFLARE_ACCOUNT_ID` | La barra lateral del panel de Workers. Aquí es **obligatorio**, aunque en otros repositorios sea opcional: este dueño tiene más de una cuenta, y cuando el token ve varias, wrangler pregunta cuál — y un token acotado no tiene permiso para leer la lista, así que falla con un error sobre permisos que no es lo que pasa. (Alternativa: escribir `"account_id"` en `wrangler.jsonc`; el flujo acepta las dos formas y prefiere el archivo.) |
+
+Y dos en el Worker, que **no** van en GitHub y se ponen una sola vez desde tu
+terminal:
 
 ```bash
 openssl rand -base64 32 | npx wrangler secret put SECRETO_SESION
@@ -145,7 +177,21 @@ openssl rand -base64 32 | npx wrangler secret put PIMIENTA_PIN
   no sirve de nada. **No se rota a la ligera**: cambiarla deja a todos los socios
   fuera de golpe.
 
+Viven en el Worker y no en Actions porque Actions no los necesita para nada:
+`wrangler deploy` no los toca, y una llave que no hace falta en un sitio es una
+llave de más dando vueltas.
+
+### Publicar a mano, si hace falta
+
+El botón sigue estando: Actions → «Probar y desplegar» → Run workflow. Y desde
+la terminal, `npm run desplegar` hace lo mismo. Con una diferencia: lanzado a
+mano **sin** `CLOUDFLARE_API_TOKEN`, el flujo falla en vez de avisar — quien
+pulsa un botón espera que pase algo, y un verde que no hizo nada engaña.
+
 ### La puerta del equipo
+
+Publicar **no** abre el panel. Mientras falten sus dos datos, `/panel/` responde
+503 y la app del socio funciona igual.
 
 En Cloudflare: **Zero Trust → Access → Applications → Self-hosted**.
 
@@ -159,20 +205,23 @@ De su pestaña *Overview* se copian los dos valores a `wrangler.jsonc`:
 - `ACCESO_DOMINIO` ← el dominio del equipo, `algo.cloudflareaccess.com`
 - `ACCESO_AUD` ← la etiqueta **Application Audience (AUD) Tag**
 
+Al empujar ese cambio, el flujo despliega solo.
+
 > **Cuidado con cuál de los dos identificadores se pega.** La etiqueta AUD son
 > **64** caracteres hexadecimales. El que enseña la barra lateral del panel de
 > Workers tiene **32** y es el de la **cuenta**. Se parecen, están a un clic el
 > uno del otro, y con el equivocado puesto el panel queda **en pie** contestando
 > «la sesión caducó» a cada llamada — sin sesión que caducar. En PanaClaw eso
-> costó una tarde. `npm run verificar` lo para antes de construir.
+> costó una tarde. `npm run verificar` lo para antes de construir, así que un
+> valor mal copiado ya no llega a desplegarse.
 
-### Y entonces
+### Una cosa que el flujo vigila por ti
 
-```bash
-export CLOUDFLARE_ACCOUNT_ID=<el de la barra lateral de Workers>
-npm run migrar           # aplica las migraciones a la base de producción
-npm run desplegar        # verifica, prueba, construye y publica
-```
+`MODO=desarrollo` salta la comprobación de Access entera y deja el panel abierto
+a quien dé con la dirección. Vive en `.dev.vars`, que no se versiona. Desde que
+despliega Actions sola, un `"MODO": "desarrollo"` colado en `wrangler.jsonc` se
+publicaría sin que nadie lo leyera — así que `npm run verificar` lo rechaza y el
+flujo se para antes de migrar nada.
 
 ### El dominio, y el aviso más caro del proyecto
 

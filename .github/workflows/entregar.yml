@@ -1,0 +1,260 @@
+# Probar y, si todo pasa, publicar. En ese orden y sin saltárselo.
+#
+# ── POR QUÉ UN SOLO FLUJO Y NO DOS ──────────────────────────────────────────
+#
+# Los dos hubs hermanos tienen el despliegue y las migraciones en flujos
+# separados, y los dos documentan el mismo agujero: nadie puede encadenarlos.
+# En hub-business-supplies está escrito con todas sus letras — «esto arranca a
+# la vez que la construcción de Cloudflare, no antes: no hay forma de
+# encadenarlas desde aquí». En la práctica gana la migración porque tarda
+# segundos y construir tarda minutos, pero eso es una carrera que se gana por
+# costumbre, no por diseño.
+#
+# Aquí son tres trabajos encadenados en un solo flujo, y la carrera deja de
+# existir:
+#
+#     probar  →  migrar  →  desplegar
+#
+# El orden importa y es ése, no el contrario. Una migración es aditiva: añade
+# tablas y columnas. El código viejo con columnas de más funciona igual —no las
+# mira—; el código nuevo con columnas de menos responde «La operación falló» a
+# todo. Así que la base va primero y el Worker después. Si la migración falla,
+# el despliegue no llega a ocurrir y lo que está publicado sigue en pie.
+#
+# `wrangler d1 migrations apply` no repite lo ya aplicado, así que correrlo en
+# cada empuje es inofensivo. Se hace siempre, y no solo cuando cambia
+# `migraciones/`, porque filtrar por ruta es una regla más que puede estar mal
+# el día que alguien mueva un archivo — y el precio de que esté mal es un Worker
+# nuevo contra una base vieja.
+#
+# ── LA PUERTA NO SE ABRE SOLA ───────────────────────────────────────────────
+#
+# Publicar no abre el panel. Mientras `ACCESO_DOMINIO` y `ACCESO_AUD` sigan en
+# PENDIENTE, `/panel/` responde 503 diciendo qué falta, y la app del socio
+# funciona igual. Eso es deliberado: ver `worker/index.ts`.
+#
+# ── LO QUE HAY QUE CREAR A MANO, UNA VEZ ────────────────────────────────────
+#
+#   CLOUDFLARE_API_TOKEN   Obligatorio. dash.cloudflare.com → Manage Account →
+#                          API Tokens → Create Token → plantilla «Edit
+#                          Cloudflare Workers». ANTES de crearlo, súmale el
+#                          permiso Account → D1 → Edit: sin él, publicar
+#                          funciona pero migrar no, y el fallo llega a mitad de
+#                          camino con la base ya tocada a medias.
+#
+#   CLOUDFLARE_ACCOUNT_ID  Obligatorio AQUÍ, aunque en otros repositorios sea
+#                          opcional: este dueño tiene al menos dos cuentas de
+#                          Cloudflare, y cuando el token ve varias, wrangler
+#                          pregunta cuál. Un token acotado no tiene permiso para
+#                          leer la lista de cuentas, así que falla antes de
+#                          tocar nada con un error sobre permisos que no es lo
+#                          que pasa. Se copia de la barra lateral del panel de
+#                          Workers. No es un secreto —sale en la propia URL del
+#                          panel— pero se guarda como tal para no tenerlo
+#                          escrito en el repositorio.
+#
+#   Los dos: Settings → Secrets and variables → Actions → New repository secret.
+#
+# Alternativa a la segunda: escribir `"account_id"` en `wrangler.jsonc`. Este
+# flujo acepta las dos formas y prefiere el archivo si está.
+
+name: Probar y desplegar
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Un despliegue a la vez. Si llegan dos empujes seguidos, el segundo espera en
+# vez de pisar al primero a medias.
+concurrency:
+  group: entregar-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. PROBAR. Corre siempre, también en los PR, y nada se publica sin esto.
+  # ---------------------------------------------------------------------------
+  probar:
+    name: Probar
+    runs-on: ubuntu-latest
+    outputs:
+      hay_llave: ${{ steps.llave.outputs.hay }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Va primero y es lo más barato: si la marca se desincronizó, si se coló
+      # una columna `saldo`, si MODO=desarrollo acabó en wrangler.jsonc o si la
+      # etiqueta de Access está mal copiada, se sabe en tres décimas.
+      - name: La marca y las invariantes
+        run: npm run verificar
+
+      - name: Las reglas del dinero
+        run: npm test
+
+      - name: El Worker compila
+        run: npm run tipos
+
+      # Vuelve a correr verificar y las pruebas por dentro. Es a propósito: aunque
+      # alguien edite este archivo y borre los dos pasos de arriba, no hay forma
+      # de construir `publico/` saltándoselos.
+      - name: Construir
+        run: npm run build
+
+      # Si falta la llave, qué hacer depende de quién llamó:
+      #
+      #   · Lo lanzó una persona desde el botón → se para. Quien pulsa espera
+      #     que pase algo, y un verde que no hizo nada engaña.
+      #   · Lo disparó un empuje → se avisa fuerte y se sigue en verde. Un
+      #     repositorio todavía no conectado a Cloudflare es un estado legítimo,
+      #     y una cruz roja en cada empuje enseña al equipo a no mirar las
+      #     cruces rojas — que es justo lo que no puede pasar el día que una sea
+      #     de verdad.
+      - name: ¿Está la llave?
+        id: llave
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            echo "hay=si" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "::error::Falta el secreto CLOUDFLARE_API_TOKEN, así que no hay nada que desplegar."
+            echo "Se crea en Cloudflare → Manage Account → API Tokens con la plantilla"
+            echo "«Edit Cloudflare Workers» MÁS el permiso Account → D1 → Edit, y se guarda"
+            echo "en Settings → Secrets and variables → Actions. Está en el README."
+            exit 1
+          else
+            echo "hay=no" >> "$GITHUB_OUTPUT"
+            echo "::warning::Las pruebas pasaron pero NO se desplegó nada: falta el secreto CLOUDFLARE_API_TOKEN."
+          fi
+
+  # ---------------------------------------------------------------------------
+  # 2. MIGRAR. La base antes que el código, siempre.
+  # ---------------------------------------------------------------------------
+  migrar:
+    name: Migrar la base
+    needs: probar
+    if: github.event_name != 'pull_request' && needs.probar.outputs.hay_llave == 'si'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # La cuenta, del archivo si está y del secreto si no. Se resuelve aquí y
+      # no en cada paso para que el mensaje de «falta la cuenta» salga una vez y
+      # sea el mismo en los dos trabajos.
+      - name: Resolver la cuenta
+        env:
+          CUENTA_SECRETO: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          CUENTA=$(grep -o '"account_id"[[:space:]]*:[[:space:]]*"[^"]*"' wrangler.jsonc \
+            | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+          [ -z "$CUENTA" ] && CUENTA="$CUENTA_SECRETO"
+
+          if [ -z "$CUENTA" ]; then
+            echo "::error::No se sabe a qué cuenta de Cloudflare desplegar."
+            echo "Este dueño tiene más de una cuenta, así que wrangler no puede adivinarla,"
+            echo "y un token acotado no tiene permiso para leer la lista: falla antes de tocar"
+            echo "nada con un error sobre permisos que no es lo que pasa."
+            echo "Solución: guardar CLOUDFLARE_ACCOUNT_ID como secreto del repositorio, o"
+            echo "escribir \"account_id\" en wrangler.jsonc. Se copia de la barra lateral"
+            echo "del panel de Workers."
+            exit 1
+          fi
+          echo "CLOUDFLARE_ACCOUNT_ID=$CUENTA" >> "$GITHUB_ENV"
+
+      # Deja en el registro qué había pendiente ANTES de tocar nada. Es lo
+      # primero que uno quiere ver cuando algo sale mal.
+      - name: Qué falta por aplicar
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler d1 migrations list dcasa-socios-db --remote
+
+      # La confirmación que este comando pide por consola se salta sola en CI.
+      # Si una migración falla, se deshace y la anterior se queda aplicada — y
+      # el trabajo de desplegar no llega a correr.
+      - name: Aplicar lo que falte
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npm run migrar
+
+  # ---------------------------------------------------------------------------
+  # 3. DESPLEGAR. Solo si lo anterior pasó entero.
+  # ---------------------------------------------------------------------------
+  desplegar:
+    name: Desplegar el Worker
+    needs: [probar, migrar]
+    if: github.event_name != 'pull_request' && needs.probar.outputs.hay_llave == 'si'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Resolver la cuenta
+        env:
+          CUENTA_SECRETO: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          CUENTA=$(grep -o '"account_id"[[:space:]]*:[[:space:]]*"[^"]*"' wrangler.jsonc \
+            | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+          [ -z "$CUENTA" ] && CUENTA="$CUENTA_SECRETO"
+          if [ -z "$CUENTA" ]; then
+            echo "::error::No se sabe a qué cuenta de Cloudflare desplegar. Ver el trabajo anterior."
+            exit 1
+          fi
+          echo "CLOUDFLARE_ACCOUNT_ID=$CUENTA" >> "$GITHUB_ENV"
+
+      # Se construye otra vez en este trabajo, y no se arrastra `publico/` del
+      # anterior. Cuesta dos segundos y compra que lo que se publica salga de un
+      # `npm run build` completo —verificar y pruebas incluidos— en la misma
+      # máquina que lo publica, en vez de de un archivo que viajó entre trabajos.
+      - name: Construir lo que se publica
+        run: npm run build
+
+      - name: Publicar
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler deploy
+
+      - name: Qué queda por hacer a mano
+        run: |
+          {
+            echo "### Publicado"
+            echo ""
+            echo "La app del socio ya responde. El panel del equipo, todavía no:"
+            echo ""
+            echo "- Mientras \`ACCESO_DOMINIO\` y \`ACCESO_AUD\` sigan en \`PENDIENTE\`,"
+            echo "  \`/panel/\` responde **503** diciendo qué falta. Es deliberado."
+            echo "- Se arregla creando la aplicación en Zero Trust → Access → Applications,"
+            echo "  sobre este Worker y con la **ruta \`panel\`**, y copiando sus dos datos"
+            echo "  a \`wrangler.jsonc\`."
+            echo "- La etiqueta AUD son **64** caracteres y sale en esa aplicación"
+            echo "  (pestaña Overview). El identificador de **32** de la barra lateral de"
+            echo "  Workers es el de la CUENTA: con ése puesto, el panel queda en pie"
+            echo "  diciendo «la sesión caducó» sin que recargar arregle nada."
+            echo ""
+            echo "Y el programa no acredita un punto hasta que \`datos/puntos.json\` deje"
+            echo "de tener valores en \`PENDIENTE\`. Son decisiones de Marcial."
+          } >> "$GITHUB_STEP_SUMMARY"

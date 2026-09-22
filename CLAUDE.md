@@ -49,6 +49,12 @@ npm run build        # los tres anteriores + arma publico/
 Los tres avisos de `verificar` sobre `PENDIENTE` son correctos y esperados
 mientras Marcial no responda. **No los hagas callar rellenando los valores.**
 
+**Y corre esto de verdad antes de empujar a `main`**, porque desde ahí ya no lo
+revisa nadie: cada empuje dispara `entregar.yml`, que prueba, migra la base y
+despliega el Worker, en ese orden. Lo que llega a `main` se publica. Un PR es
+seguro —solo corre `probar`— y es por dónde va un cambio del que no estés
+seguro.
+
 ---
 
 ## 3. La arquitectura en una frase

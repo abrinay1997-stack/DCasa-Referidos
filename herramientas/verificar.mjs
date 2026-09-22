@@ -344,6 +344,26 @@ function reglaPuerta() {
   revisar('ACCESO_DOMINIO', formaDominio, 'un dominio de equipo, «algo.cloudflareaccess.com»');
   revisar('ACCESO_AUD', formaAud, 'una etiqueta AUD, 64 caracteres hexadecimales');
 
+  // MODO=desarrollo salta la comprobación de Cloudflare Access ENTERA y deja el
+  // panel abierto a quien dé con la dirección. Vive en `.dev.vars`, que no se
+  // versiona, y no tiene por qué aparecer nunca aquí.
+  //
+  // Esta comprobación no existía mientras desplegaba una persona desde su
+  // terminal: ahí, quien pega una variable en `wrangler.jsonc` es quien la
+  // mira. Desde que despliega GitHub Actions sola en cada empuje a `main`, un
+  // `"MODO": "desarrollo"` colado en un commit se publica sin que nadie lo lea.
+  // Es barata y lo que evita no lo es.
+  if ('MODO' in (config.vars ?? {})) {
+    const linea = crudo.split('\n').findIndex((l) => l.includes('"MODO"')) + 1;
+    error(
+      'wrangler.jsonc',
+      linea,
+      `MODO no va aquí. Puesto en «desarrollo» salta la comprobación de Access ` +
+        `entera y deja el panel del equipo abierto a cualquiera que dé con la ` +
+        `dirección. Va en .dev.vars, que no se versiona ni se publica.`,
+    );
+  }
+
   // `run_worker_first` sobre /panel/* es lo que impide que Cloudflare sirva la
   // pantalla del panel desde el borde sin ejecutar el guardia.
   const primero = config.assets?.run_worker_first;
